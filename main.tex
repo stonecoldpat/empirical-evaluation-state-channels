@@ -1,0 +1,396 @@
+\PassOptionsToPackage{usenames}{xcolor}
+\PassOptionsToPackage{dvipsnames}{xcolor}
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs} % For formal tables
+\usepackage{multirow}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{xspace}
+\usepackage{pifont}% http://ctan.org/pkg/pifont
+\usepackage{color}
+\usepackage{boxedminipage}
+\usepackage[ff,sets,keys,primitives,operators]{cryptocode}
+\usepackage{framed}
+\usepackage[group-separator={,}]{siunitx}
+\newcommand\bmmax{2}
+\usepackage{bm}
+\usepackage{enumitem,amsmath,amsthm}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{footnote}
+\usepackage{units}
+\usepackage{multicol,lipsum}
+\colorlet{iomsg}{MidnightBlue}
+\colorlet{party}{brown}
+\colorlet{entry}{NavyBlue}
+\colorlet{string}{BlueViolet}
+
+\newcommand{\instantiated}{\mathsf{instantiated}}
+\newcommand{\instantiatedno}{\mathsf{NO}}
+\newcommand{\instantiatedyes}{\mathsf{YES}}
+
+\newcommand{\chanstatus}{\mathsf{status}}
+
+\newcommand{\chanon}{\mathsf{ON}}
+\newcommand{\chandispute}{\mathsf{DISPUTE}}
+\newcommand{\chanoff}{\mathsf{OFF}}
+
+%\newcommand{\hash}{\textsf{H}}
+\newcommand{\cmd}{\mathsf{cmd}}
+\newcommand{\hstate}{\mathsf{hstate}}
+\newcommand{\hstatei}{\mathsf{hstate}_{\monotoniccounter}}
+\newcommand{\hstateplus}{\ensuremath{\mathsf{hstate}_{\monotoniccounter+1}}}
+\newcommand{\hstateminus}{\ensuremath{\mathsf{hstate}_{\monotoniccounter-1}}}
+\newcommand{\monotoniccounter}{\mathsf{i}}
+\newcommand{\stateinfo}{\mathsf{state}}
+\newcommand{\stateinfoi}{\mathsf{state}_{\mathsf{i}}}
+\newcommand{\stateinfominus}{\mathsf{state}_{\mathsf{i-1}}}
+\newcommand{\stateinfoplus}{\mathsf{state}_{\mathsf{i+1}}}
+\newcommand{\participant}{\mathcal{P}}
+
+\newcommand{\rani}{\mathsf{r}_{\mathsf{i}}}
+\newcommand{\ran}{\mathsf{r}}
+\newcommand{\ranminus}{\mathsf{r}_{\mathsf{i-1}}}
+\newcommand{\ranplus}{\mathsf{r}_{\mathsf{i+1}}}
+
+\newcommand{\statechannel}{\mathsf{SC}}
+\newcommand{\statechanneldispute}{\mathsf{SC}.\mathsf{trigger}}
+\newcommand{\statechannelsetstate}{\mathsf{SC}.\mathsf{setstatehash}}
+\newcommand{\statechannelresolve}{\mathsf{SC}.\mathsf{resolve}} 
+\newcommand{\statechannelgetcommitment}{\mathsf{SC}.\mathsf{getstatehash}} 
+\newcommand{\statechannelgetdispute}{\mathsf{SC}.\mathsf{getdispute}} 
+
+\newcommand{\sign}{\mathsf{Sign}}
+\newcommand{\verifysig}{\mathsf{VerifySig}}
+
+\newcommand{\appcontract}{\mathsf{AC}}
+\newcommand{\applock}{\mathsf{AC.lock}}
+\newcommand{\appunlock}{\mathsf{AC.unlock}}
+
+\newcommand{\timerdispute}{\mathsf{\Delta}_{\mathsf{dispute}}}
+\newcommand{\timenow}{\mathsf{t}_{\mathsf{now}}}
+\newcommand{\timestart}{\mathsf{t}_{\mathsf{start}}}
+\newcommand{\timeend}{\mathsf{t}_{\mathsf{end}}}
+\newcommand{\timedispute}{\timenow + \mathsf{\Delta}_{\mathsf{dispute}}}
+
+% Colorful diagrams 
+\newcommand{\constructor}{\textcolor{entry}{\bf constructor }}
+\newcommand{\oninput}{\textcolor{entry}{\bf function }}
+\newcommand{\stringlitt}[1]{\texttt{\textcolor{string}{#1}}}
+
+\begin{document}
+
+
+	\title{An empirical evaluation of state channels as a scaling solution for cryptocurrencies}
+	\maketitle
+	\begin{abstract}
+		So-called Layer 2 and Off-chain solutions are heralded as a scaling solution for cryptocurrencies. 
+	\end{abstract} 
+
+\section{Introduction}
+
+We propose a new state channel construction that combines the dispute process model from Sprites to support $n$-parties, the ability to turn a channel on/off by requiring the dispute process to determine the latest state commitment from L4/PERUN and finally it incorporates state commitments from PISA such that the dispute process is only responsible for accepting the latest state commitment that was authorised by all parties. 
+
+
+\begin{itemize}
+\item A new dispute process that supports any application and ensures quick liveness of the application (i.e. sprites, every command dispute = slow, L4/Perun requires incorporating channel into app)
+\item Financial incentives + fraud proofs can be used to avoid elaborate cryptography to build meaningful applications. Can only go so far (i.e. makes sense for battleships as everything is eventually revealed, but not e-voting) 
+\item The first empirical evaluation of state channels as a scaling solution. 
+
+\end{itemize}
+\section{Background}
+
+\subsection{Ethereum and smart contracts}
+\subsection{Evolution of channel constructions}
+
+In Bitcoin - dispute process is to determine latest state and "close" the channel. Awkward to make this work - Lightning relies on revocation/penalty to enforce latest state is broadcast/accepted. 
+
+In Perun/L4 - the dispute process is to determine the latest state and "close" the channel. 
+
+In Sprites - dispute process is to process "commands" such as payments / withdrawals. Useful for single-purpose commands, not great for continuous applications (i.e. gaming) due to dispute process per command.
+
+In Pisa - dispute process extends Sprites, but adds privacy-preserving feature - this allows state channel contract to be independent of the application. 
+
+\section{State Channel Construction} 
+
+%We propose a state channel contract and modifications to an application contract that is required to support the state channel.
+We propose a new state channel contract $\statechannel$ and the modifications required for  application contracts $\appcontract$  to support state channels before deployment. 
+This modification includes a mechanism for locking (and unlocking) the application into a state channel upon approval of all parties. 
+
+At a high level, the locking mechanism $\applock$ disables all functionality within the application contract and instantiates the state channel contract. 
+Once locked, all parties execute the application off-chain amongst themselves by proposing state transitions and co-operatively signing a hash for every new state (alongside an incremented counter). 
+A state hash is only consider valid when each party has received a signature from every other party. 
+To turn off the channel, any party can trigger the dispute process using $\statechanneldispute$ via the state channel contract.
+This provides  a fixed time period  for all parties to publish the state hash with the largest monotonic counter using $\statechannelsetstate$. 
+After the dispute process has expired, any party can resolve the dispute using $\statechannelresolve$ which turns off the channel and allows any party to unlock the application contract $\appunlock$. 
+To unlock, any party can reveal the state (in plain text) to the application contract and this opening is verified by fetching the final state hash from the state channel contract using  $\statechannelgetcommitment$. 
+Once verified, the full state is stored within the application contract and all functionality is re-enabled to permit execution to continue on-chain. 
+
+In the following, we present the new state channel contract and the modifications required to an application contract. 
+
+
+\subsection{State channel contract}
+
+%\paddy{I'd like to add "commands" into the state channel; so we can add/remove new participants (or withdraw coins) without turning off the channel. Basic SPRITES construction! }
+
+%The state channel contract manages the dispute process and it is responsible for determining the state commitment that is used by the application contract before its functionality is re-enabled to permit on-chain state transitions. 
+We provide an overview of the state channel construction before discussing how to set it up, how participants authorise state transitions off-chain and how the dispute process allows the contract to accept a final state commitment. 
+
+\paragraph{Overview of the channel contract} 
+The contract contains a list of parties $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, and the application contract's address $\appcontract$. 
+A new state hash is defined $\hstatei = \hash(\stateinfoi, \rani)$, where $\hash$ is a cryptographic hash function, $\stateinfoi$ is the new state and $\rani$ is a random nonce.
+Every party must co-operatively sign a state hash alongside an incremented monotonic counter such that $\sigma_{\participant} = \sign_{\participant}(\hstatei, \monotoniccounter)$\footnote{For readability, we omit some signed parameters such as the contract address $\statechannel$.} before it is considered valid and can be accepted by the state channel contract. 
+Any party within the channel can trigger a dispute using $\statechanneldispute$.
+This provides a fixed time period between $\timenow$ and $\timedispute$ for all parties to submit $\hstate$, its monotonic counter $\monotoniccounter$ and a corresponding signature from every party $\Sigma_{\participant}$. 
+Afterwards, any party can resolve the dispute using $\statechannelresolve$ which accepts the state hash with the largest monotonic counter as the final hash.
+It also turns off the channel and allows the final $\hstatei$ to be fetched by $\appcontract$ using  $\statechannelgetcommitment$. 
+Finally the dispute time period $\timenow$, $\timedispute$ and the final monotonic counter $i$ is recorded.
+This dispute record can later be fetched using $\statechannelgetdispute$. 
+%
+%
+%This command alongside a commitment to the new state and 
+%This command alongside a signed state commitment tuple $(\hstateplus,\monotoniccounter+1)$ is sent to the other parties.
+%To verify, each party computes the new $\stateinfoplus$ (and its corresponding counter) using the received $\cmd$ before exchanging their signature for the new state commitment. 
+%A state commitment is not considered authorised until every party has a signature from every other party in the channel. 
+%If one party aborts and does not sign the state commitment, then any party can trigger the dispute process in the state channel. 
+%This provides a fixed time period for all parties to submit the latest authorised commitment $h_{i+1}$ alongside a list of signatures $\sigma_{p1},...,\sigma_{pn}$ to the state channel contract.
+%Once the dispute process has expired, the commitment $h_{n}$ with the largest monotonic counter is considered the final state and it becomes available for the application contract to fetch. 
+
+\paragraph{Creating the channel} 
+
+The application contract $\appcontract$ is responsible for instantiating the state channel contract and providing it with the list of participants $\participant_{1},...,\participant_{n}$, the dispute timer $\timerdispute$, the address $\appcontract$ and setting $\chanstatus := \chanon$. 
+As we discuss in the next section, all functionality in the application contract is disabled after the state channel contract is created. 
+
+\paragraph{Authorising off-chain state hashes}
+A command $\cmd$ is a function call within the application contract.
+Any party can select a command $\cmd$ and propose a new state transition $\stateinfoplus := \mathsf{transition}(\stateinfoi, \cmd)$.
+The state channel is independent of the application and requires a hash of the new state  $\hstateplus = \hash(\stateinfoplus, \ranplus)$ to be computed and signed  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$.
+In order to finalise the state transition, the proposer  must send $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties for their approval.
+
+All other parties in the channel must verify the state transition before authorising it. 
+To verify, each party re-computes the state transition $\stateinfoplus' := \mathsf{transition}(\stateinfoi, \cmd)$ and the state hash $\hstateplus' := \hash(\stateinfoplus', \ranplus)$.
+Then, each party verifies  ($\hstateplus', \monotoniccounter+1$ corresponds to the signature received $\sigma_{\participant}$ and that $\monotoniccounter+1$ represents the largest monotonic counter so far. 
+If satisfied, each party signs the state hash  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$ and sends the state information  $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties. 
+
+This state transition is only considered valid when each party has received a signature from every other party for $(\hstatei, \monotoniccounter+1)$. If one party does not receive all signatures within a local time-out, then this party can trigger the dispute process to turn off the channel and continue the application's execution on-chain. 
+
+\paragraph{Dispute process.} 
+
+Any party can trigger the dispute process using $\statechanneldispute$ which self-enforces a time period $\timestart := \timenow$, $\timeend := \timedispute$ and sets $\chanstatus = \chandispute$. 
+Any party can submit the latest state hash (alongside a signature from every party $\Sigma_{\participant})$ during the dispute period using $\statechannelsetstate$. 
+The state channel contract $\statechannel$ only stores the $\hstatei$ if it is  signed by all parties within the state channel and it is  associated with the largest $\monotoniccounter$ received so far. 
+After the dispute period has expired, any party can resolve it using $\statechannelresolve$ which sets $\chanstatus = \chanoff$, stores a dispute record ($\timestart,\timeend, \monotoniccounter$) and allows the application contract $\appcontract$ to fetch the final state hash $\hstatei$. 
+
+\subsection{Application Contract}
+
+We provide an overview of the modified required to an application contract before deployment in order to support state channels. We discuss how to disable functionality in $\appcontract$ after instantiating the state channel and how to re-enable the application to support continuous on-chain execution after turning off the state channel. 
+
+\paragraph{Overview of modifications}
+An application contract must satisfy a basic template in order to support a state channel. 
+It should explicitly record a list of participants $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, whether the channel has been instantiated  $\instantiated := \{\instantiatedyes, \instantiatedno\}$ and the address of $\statechannel$. 
+All functions within the application require a new pre-condition to check whether the state channel is instantiated, and it should only permit execution if $\instantiated = \instantiatedno$. 
+Finally the application must include two new functions $\applock$ that instantiates the state channel upon approval of all parties and $\appunlock$ that accepts the a copy of the full state and re-enables the application. 
+
+
+%A dispute time period 
+%An explicit list of participants 
+%A new boolean (on/off) and a pre-condition for every function in the contract (i.e. only allow function to be used if state channel is off)
+%Two new functions: create channel (requires a signature from all parties) and setstate (receive full state, fetch hash, compare, store on-chain and re-enable functionality). 
+
+
+ 
+\paragraph{Lock Application Contract} All parties must approve to instantiating the state channel by signing $(\chanon, \appcontract, \timerdispute, \mathsf{k}$), where $\chanon$ signals turning on the channel, $\mathsf{k}$ is an incremented counter to ensure freshness of the signed message and $\timerdispute$ is the fixed time period for the dispute process. 
+Any party can call $\appunlock$ with the list of signatures $\Sigma_{\participant}$, $\timerdispute$ and $\mathsf{k}$ to turn on the state channe. 
+The application contract $\appcontract$ verifies all signatures and that $\mathsf{k}$ represents the largest counter received so far.
+If satisfied,  $\appcontract$ creates the state channel contract $\statechannel$, updates $\statechannel$ with the list of participants $\participant_{1},...,\participant_{n}$ and the dispute timer $\timerdispute$. 
+As well, within $\appcontract$ the state channel is marked as turned on by setting $\chanstatus := \chanon$ and this effectively disables all functionality for the application.
+Finally $\appcontract$ also stores the state channel address $\statechannel$. 
+ 
+
+\paragraph{Unlock Application Contract}
+
+After the dispute process has concluded in $\statechannel$, one party must send the application contract  $\stateinfoi,\rani$ using $\appunlock$. 
+Before re-enabling functionality, the application contract verifies that $\stateinfoi$  indeed represents the final state by computing $\hstatei' := \hash(\stateinfoi, \rani)$, fetching the final state hash $\hstatei$ from $\statechannel$ and finally checking  $\hstatei' = \hstatei$. 
+If satisfied, it stores $\stateinfoi$ as the  state of the application and re-enables all functionality by setting $\chanstatus := \chanoff$. 
+Of course, if the state channel contract's dispute process expires without a submitted $\hstatei$, then this indicates there was no off-chain activity.
+The application contract can verify that the state channel returns $\emptyset$ before re-enabling the application without modifying the existing state. 
+
+
+Notes: While all functionality is disabled on-chain; we need to be careful with how parties execute it off-chain! Not all functionality can be supported off-chain (i.e. contract to contract interaction); so this needs to be considered. 
+
+\section{Battleship within a State Channel} 
+
+\subsection{Battleship Game} 
+In this section, we propose evaluating state channels using a battleship game. 
+
+\paragraph{Set-up game} Both parties can commit to $N$ boards (via a merkle tree) and a list of ships (a hash with every position of ship). Each counterparty must pick one of the boards. All other $n-1$ boards must be revealed. If one board is fake, then the counterparty can use this alongside a fraud proof to penalise. If all $n$ boards is ok, then both parties can submit a message to say "lets continue the game" 
+
+\paragraph{Game-play} A player selects a bit on the board, and the counter-party must reveal the commitment (i.e. $H(T/F,r)$). During this reveal, the counterparty sends a signed message $Sign(T/F,r,SUNK/NOTSUNK)$ i.e. player successful hit a spot, but the boat is not sunk. 
+
+Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
+Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
+
+\paragraph{End of game} Winner must reveal their board, and the loser is provided a fixed time period to declare fraud. i.e. that the winners board was in fact fake. 
+
+\paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
+
+\section{Experiment on Ethereum's Test Network}
+
+\section{Discussion} 
+
+\paragraph{Channel vs Plasma} Validators = users, whereas validators != users. Both rely on a global blockchain as a root of trust. 
+
+\paragraph{Private blockchain} All participants can execute a smart contract via a private blockchain (to simulate its execution), and sign the resulting state amongst themselves. After all, we only care for the normal execution of a smart contract. 
+
+\paragraph{Dynamic Participation} Unlike Sprites/PISA, new parties cannot be added to this state channel. All parties would have to close/re-open the state channel. Although it is feasible to "combine" both constructions to support commands for adding parties to the channel, and then for the latest state. We leave this as future work for now. 
+
+
+\paragraph{Non-attributable problem} Fundamentally, it appears impossible to determine the cause behind a dispute on the blockchain. i.e. one party refuses to sign update; or A just doesnt send B's signature to blokchain and instead sends a previous state.
+
+\paragraph{Funfair Dilemma} Should we optimise for minimal on-chain or off-chain state? Sprites/PISA/Funfair assume everything is on-chain (via single application) and Perun/L4 assume several contracts can live off-chain. 
+
+This also raises the problem of splitting transaction fees. In a 2 party channel it is straight-forward (i.e. split half way), but in a n-party channel - the griefer can cause a multiplier of fee cost to everyone. Even worst as mentioned before - no evidence who the griefer is! 
+
+\paragraph{Applications of state channels} All parties must remain on-line for the execution of a state channel. As a result, applications may be context-specific (i.e. quick auctions for buying/selling AdWords, but not for the Ethereum Name Service). 
+
+\paragraph{Application Timers} There is support for both absolute and relative timers. Relative timers are ideal as they allow the designer to avoid considering the dispute process time (i.e. it starts ticking once the application is re-activated). However, absolute time locks are sometimes necessary/unavoidable (i.e. HTLC transfers). 
+
+\paragraph{Benefit to PISA} All applications rely on a single state channel contract. Thus, a custodian only has to verify the bytecode for a single contract and can accept jobs for any application. 
+
+\appendix
+
+
+\begin{figure}[h]
+	\begin{boxedminipage}{\columnwidth}
+		\begin{center}
+			\textsf{State channel contract}{}\\
+		\end{center}
+		
+		$\chanstatus := \bot \\
+		\participant  := \emptyset, \appcontract := \bot, \\ \hstate := \bot, \monotoniccounter := 0 \\ \timerdispute := 0, \timenow := 0, \timeend := 0$
+		
+		\begin{flushleft}
+			\constructor($\participant', \timerdispute', \appcontract'$):
+			
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{set} $\participant := \participant'$ \\
+			\quad \textbf{set} $\timerdispute := \timerdispute'$ \\ 
+			\quad \textbf{set} $\appcontract := \appcontract'$ \\
+			\quad \textbf{set} $\chanstatus := \chanon$ \\
+			
+		\end{tabular}
+		
+		\begin{flushleft}
+			\oninput \stringlitt{triggerdispute}($\sigma_{k}$): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chanon$ \\
+			\quad \textbf{discard if} $\participant \notin \participant_{k}$ \\
+			\quad \textbf{if} $\verifysig(\participant_{k}, (\statechannel, \appcontract, ``\mathsf{dispute}"), \sigma_{k})$ \\
+			\quad \quad \textbf{set} $\chanstatus := \chandispute$ \\
+			\quad \quad \textbf{set} $\timestart := \timenow$ \\
+			\quad \quad \textbf{set} $\timedispute := \timestart + \timerdispute$
+			
+		\end{tabular}
+		
+		
+		\begin{flushleft}
+			\oninput  \stringlitt{setstatehash}($\hstate', \monotoniccounter', \Sigma_{\participant}$):
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus = \chanoff$ \\
+			\quad \textbf{discard if} $\monotoniccounter' \leq \monotoniccounter$ \\
+			\quad \textbf{if} $\verifysig(\participant, (\hstate', \monotoniccounter', \statechannel, \appcontract), \Sigma_{\participant})$ \\
+			\quad \quad \textbf{set} $\hstate := \hstate'$ \\
+			\quad \quad \textbf{set} $\monotoniccounter := \monotoniccounter'$ \\
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{resolve}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+		\quad \textbf{discard if} $\chanstatus \neq \chandispute$ \\
+		\quad \textbf{discard if} $\timenow < \timeend$ \\
+		\quad \textbf{set} $\chanstatus := \chanoff$ 
+		\end{tabular}
+	
+		\begin{flushleft} 
+		\oninput \stringlitt{getstatehash}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+		\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
+		\quad \textbf{return} $\hstatei$
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{getdispute}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
+			\quad \textbf{return} $(\timenow, \timeend, \monotoniccounter)$
+		\end{tabular}
+	\end{boxedminipage}
+	\caption{The state channel contract. It is responsible for managing the dispute process and determining the final state hash. Note discard fails the transaction execution if the pre-condition is satisfied.}
+\end{figure}
+
+\begin{figure}
+\begin{boxedminipage}{\columnwidth}
+	\begin{center}
+		\textsf{Template for application contract}{}\\
+	\end{center}
+	
+	$\instantiated := \bot,  \stateinfo := \bot \\ 
+	\participant  := \emptyset,  \timerdispute := 0, \\
+	\statechannel := \bot, \mathsf{k} := 0$
+	
+		
+	\begin{flushleft}
+		\constructor($\participant'$): 
+	\end{flushleft}
+	\begin{tabular}{l}
+		\quad \textbf{set} $\participant := \participant'$ \\
+		\quad \textbf{set} $\instantiated := \instantiatedno$ \\
+		
+	\end{tabular}
+
+	\begin{flushleft}
+		\oninput \stringlitt{example}(): 
+	\end{flushleft}
+	\begin{tabular}{l}
+		\quad \textbf{discard if} $\instantiated \neq \instantiatedyes$ \\
+		\quad \_;
+		
+	\end{tabular}
+	
+	
+	\begin{flushleft}
+		\oninput  \stringlitt{lock}($\timerdispute', \Sigma_{\participant}$):
+	\end{flushleft}
+	\begin{tabular}{l}
+		\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
+		\quad \textbf{if} $\verifysig(\participant,(``\mathsf{instantiate}", \appcontract, \mathsf{k}),\Sigma_{\participant})$ \\
+		\quad \quad \textbf{set} $\instantiated := \instantiatedyes$ \\
+		\quad \quad \textbf{set} $\mathsf{k} := \mathsf{k} + 1$ \\
+		\quad \quad \textbf{set} $\statechannel := \mathsf{StateChannel}(\participant, \timerdispute, \mathsf{this})$
+	\end{tabular}
+	
+	\begin{flushleft} 
+		\oninput \stringlitt{unlock}($\stateinfo',\ran'$): 
+	\end{flushleft}
+	\begin{tabular}{l}
+		\quad \textbf{discard if} $\instantiated \neq \instantiatedyes$ \\
+		\quad \textbf{if} $\hash(\stateinfo', \ran') = \statechannelgetcommitment()$ \\
+		\quad \quad $\instantiated := \instantiatedno$ \\
+		\quad \quad $\stateinfo := \stateinfo'$ \\
+		\quad \textbf{else if} $\bot = \statechannelgetcommitment()$  \\
+		\quad \quad $\instantiated := \instantiatedno$
+	\end{tabular}
+\end{boxedminipage}
+
+	\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}
+\end{figure}
+
+\end{document}
