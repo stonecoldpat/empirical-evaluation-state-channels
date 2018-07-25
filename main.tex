@@ -36,6 +36,7 @@
 \newcommand{\gameattack}{\mathsf{ATTACK}}
 \newcommand{\gamereveal}{\mathsf{REVEAL}}
 \newcommand{\gamewinner}{\mathsf{WIN}}
+\newcommand{\gamefraud}{\mathsf{FRAUD}}
 \newcommand{\gamefinished}{\mathsf{GAMEOVER}}
 
 \newcommand{\chanstatus}{\mathsf{status}}
@@ -254,6 +255,7 @@ As we demonstrate later, this is crucial to minimise the cost when turning off t
 
 \subsection{Battleship Game} 
 
+\textcolor{purple}{paddy: fix up intro. we also need to explicitly define the algorithms behind a function call - perhaps a table or two in the appendix}
 At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 board. 
 Each ship must be placed on the board horizontally or vertically, and ships cannot be placed adjacent to each other (i.e. a ship must be surrounded by water if there is available space on the board). 
 To begin the game, we rely on a cut-and-choose protocol.
@@ -268,44 +270,58 @@ There is a fixed time period for the loser to respond with proof of fraud if the
 
 In the following, we discuss in-detail how to set up the game, how the turn-based game works, and finally how to finish the game. 
 
-\paragraph{Game Phases} The contract controls the transition between five phases of the game $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner, \gamefinished\}$. 
-The $\gamesetup$ phase controls the process of each player committing to a board and a list of ships. 
-If both parties are satisfied, the contract transitions to $\gameattack$ to begin. the game.
-Game play involves several transitions between $\gameattack$ and $\gamereveal$ as each player takes turn shooting the counterparty's ships. 
-Eventually the game transitions to $\gamewinner$ which requires the winner to reveal their board and the corresponding list of ships. 
-This provides a fixed time period for the loser to provide proof of fraud that the board is not well-formed, otherwise the contract transitions to $\gamefinished$. 
+\paragraph{Game Phases} There are five phases $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
+The $\gamesetup$ phase is responsibe for selecting a single board (and a list of ships) for each player before the game begins.
+Game play involves several transitions between $\gameattack$ and $\gamereveal$ as both players take turns at shooting the counterparty's ships. 
+When one player wins the game, the game transitions to $\gamewinner$.
+This requires the winner to reveal their board and the corresponding list of ships. 
+The loser is provided with a fixed time period to submit a proof of fraud that the winner's board is not well-formed, otherwise the contract transitions to $\gamefinished$. 
 
-\paragraph{Representing board and ships} 
-A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b, r)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location and $r$ is a nonce.
-Each ship has a location $\hshiplocation := \hash(i,j,r)$, $i,j$ is the location of this position on the board and $r$ is a nonce, and a full ship is simply $\hship := \hash(\hshiplocation_{1},...,\hshiplocation_{k})$, where $k$ is the ship's length.
+\paragraph{Representing the board and ships} 
+For readability, we have removed the random nonce $r$ from all pre-images. 
+A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location.
+Each ship has a location $\hshiplocation := \hash(i,j)$, $i,j$ is the location of this position on the board and a full ship is simply $\hship := \hash(\hshiplocation_{1},...,\hshiplocation_{k})$, where $k$ is the ship's length.
 
 \paragraph{Set-up game} The game state is set as $\gamestatus := \gamesetup$.
 Each party computes $N$ boards and a corresponding list of ship locations. 
 Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board. 
-Then, each party computes a merkle $\mathsf{root}_{\participant}$, where the leaf nodes are $\hready_{1},...,\hready_{n}$ and signs $\sigma_{\participant} := \sign_{\participant}(\mathsf{root}_{\participant}, \appcontract, \mathsf{round})$, where $\mathsf{round}$ is a monotonic counter to represent the game's round. 
-This root is signed and stored in the contract using $\battleshipcommit$. 
+Then, each party computes a merkle $\mathsf{root}_{\participant}$, where the leaf nodes are $\hready_{1},...,\hready_{n}$ and signs $\sigma_{\participant} := \sign_{\participant}(\mathsf{root}_{\participant}, \appcontract, \mathsf{round})$, where $\mathsf{round}$ is a monotonic counter to represent the new round. 
+This root (alongside the party's signature) is stored in the contract using $\battleshipcommit$. 
 
 Next both parties participate in the cut-and-choose protocol.
-Each party can select one board (and list of ships) $\hready$ the counterparty should keep secret using $\battleshipselectboard$ and the counterparty is required to reveal all other boards. 
-Each party can notify the contract that are ready to play game (and thus have checked all revealed boards)  using $\battleshipbegin$. 
-Of course, if any revealed board is invalid, then the party can submit proof of fraud to the contract using $\battleshipfraud$ which forfeits the counterparty's deposit.
-If the counter-party does not reveal any boards, then the party can signal their desire not to play the game using $\battleshipgameover$.\footnote{The counter-party can be forced to reveal every board on-chain, but this may be prohibitively expensive for $N-1$ boards.}
+Each party selects one board (and list of ships) the counterparty should keep secret using $\battleshipselectboard$ and the counterparty is required to reveal all other boards. 
+If satisified, each party notifies the contract that they are ready to play the game using $\battleshipbegin$ and thus have checked all revealed boards from the counterparty. 
+%On the other hand, if the counterparty reveals an invalid board, then the party can submit proof of fraud to the contract using $\battleshipfraud$ which forfeits the counterparty's deposit.
+If the counter-party does not reveal any boards (or any of the boards are invalid), then the party can signal their desire to quit  using $\battleshipgameover$.\footnote{The counter-party can be forced to reveal every board on-chain to test its validity and potentially forfeit their deposit, but this is prohibitively expensive for $N-1$ boards.}
 
-\paragraph{Game-play} The game state transitions several times between $\gameattack$ and $\gamereveal$, and each player takes a turn at shooting the counterparty's board. 
+\paragraph{Game-play} The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player takes a turn at shooting the counterparty's board. 
 
-In the $\gameattack$ state, the player challenges the counterparty to reveal a given slot $i,j$ using $\battleshipattackslot$ which transitions the game state to $\gamereveal$. 
-The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether a ship has been $\mathsf{sunk}$.
-If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b,r, \instantiatedno, \appcontract)$.
-On the other hand if this shooting has sank a ship, then the counter-party responds using $\battleshipsinking$ with
-$\sign_{\participant}(b,r, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ is the randomness required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
+In the $\gameattack$ phase, the player challenges the counterparty to reveal a given slot $i,j$ using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$. 
+The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether this shot has sunk a ship.
+If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b, i, j, \instantiatedno, \appcontract)$.
+On the other hand if this shot has sank a ship, then the counter-party responds using $\battleshipsinking$ with
+$\sign_{\participant}(b, i, j, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
 
+The game transitions to $\gamefraud$ if the maximum number of moves has been reached and no player has lost or it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
 
-\paragraph{End of game} Winner must reveal their board, and the loser is provided a fixed time period to declare fraud. i.e. that the winners board was in fact fake. 
+\paragraph{Fraud phase} 
 
-\paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
+If the game transitions to $\gamefraud$, then the party who has revealed an erronenous number of slots loses their deposit.
+The counterparty must reveal their full board and a fixed time period is enforced to permit time for the party to submit a proof of fraud using $\battleshipfraud$. 
+Again, if fraud is proven then both parties forfeit their deposit. 
+
+\paragraph{End of game} 
+
+The winner reveals their full board and corresponding ships using $\battleshiprevealboard$.
+A fixed time period is enforced to permit time for the loser to submit a proof of fraud using $\battleshipfraud$.
+After this time period, the winner can redeem their reward using $\battleshipgameover$ which also transitions the game phase to $\gamefinished$. 
 
 
 \subsection{Proof of Fraud}
+
+Throughout the battleship game, we proposed that a submit fraud proof can be submitted using $\battleshipfraud$.
+Fraud proofs are necessary to avoid the contract performing computationally expensive searches to check whether a given board and its corresponding list of ships is invalid. 
+In the following, we highlight five different fraud proofs that can be submitted to demonstrate that a board (or list of ships) is not well-formed. 
 
 \paragraph{Claiming a ship was not sunk}
 
@@ -321,6 +337,12 @@ Requires revealed board and an opening to the ship locations.
 \paragraph{Ships not placed horizontally or vertically} 
 Provide ship and contract can test whether it is in a straight line (either via i's or j's)
 
+\subsection{Modifying to satisify state channels}
+
+\paragraph{Modify all functions to be disabled if state channel is created}
+
+\paragraph{Continue application execution on-chain if counterparty aborts}
+There is no incentive for the counterparty to authorise a state where their fraud has been prove, or if they are about to lose coins. The party can always submit the last authorised state to "turn off" the channel, and then continue the execution on-chain. But this highlights issues with timers - how do we create them such that they "only" start ticking after the dispute process is turned off? Does this require an explicit modification to how the timers are set up? Or do we just take the dispute process "into account". 
 
 \section{Experiment on Ethereum's Test Network}
 
@@ -339,6 +361,9 @@ Provide ship and contract can test whether it is in a straight line (either via 
 
 This also raises the problem of splitting transaction fees. In a 2 party channel it is straight-forward (i.e. split half way), but in a n-party channel - the griefer can cause a multiplier of fee cost to everyone. Even worst as mentioned before - no evidence who the griefer is! 
 
+\paragraph{Contract creation} Does the app contract create state channel? Or should the state channel create the application? Related to funfair dilemma - one assumes contract is already on-chain, other assumes it is created off-chain. 
+
+
 \paragraph{Applications of state channels} All parties must remain on-line for the execution of a state channel. As a result, applications may be context-specific (i.e. quick auctions for buying/selling AdWords, but not for the Ethereum Name Service). 
 
 \paragraph{Application Timers} There is support for both absolute and relative timers. Relative timers are ideal as they allow the designer to avoid considering the dispute process time (i.e. it starts ticking once the application is re-activated). However, absolute time locks are sometimes necessary/unavoidable (i.e. HTLC transfers). 
@@ -350,6 +375,7 @@ This also raises the problem of splitting transaction fees. In a 2 party channel
 \paragraph{Limitations due to EVM/Solidity} Cannot delete a mapping - problems if channel is created half-way thru and app; and you update values in the mapping! need to keep an array of all key-values... could try to store all state in a single contract, delete/recreate contract; but that is expensive (similar to the dispute registry).  
 
 
+\paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
 
 \appendix
 
