@@ -30,11 +30,25 @@
 \newcommand{\instantiatedno}{\mathsf{NO}}
 \newcommand{\instantiatedyes}{\mathsf{YES}}
 
+
+\newcommand{\gamestatus}{\mathsf{flag}}
+\newcommand{\gamesetup}{\mathsf{SETUP}}
+\newcommand{\gameattack}{\mathsf{ATTACK}}
+\newcommand{\gamereveal}{\mathsf{REVEAL}}
+\newcommand{\gamewinner}{\mathsf{WIN}}
+\newcommand{\gamefinished}{\mathsf{GAMEOVER}}
+
 \newcommand{\chanstatus}{\mathsf{status}}
 
 \newcommand{\chanon}{\mathsf{ON}}
 \newcommand{\chandispute}{\mathsf{DISPUTE}}
 \newcommand{\chanoff}{\mathsf{OFF}}
+
+\newcommand{\hready}{\mathsf{hready}}
+\newcommand{\hboard}{\mathsf{hboard}}
+\newcommand{\hslot}{\mathsf{hslot}}
+\newcommand{\hship}{\mathsf{hship}}
+\newcommand{\hshiplocation}{\mathsf{hshiplocation}}
 
 %\newcommand{\hash}{\textsf{H}}
 \newcommand{\cmd}{\mathsf{cmd}}
@@ -63,6 +77,17 @@
 
 \newcommand{\sign}{\mathsf{Sign}}
 \newcommand{\verifysig}{\mathsf{VerifySig}}
+
+\newcommand{\battleship}{\mathsf{BS}}
+\newcommand{\battleshipfraud}{\mathsf{BS.fraud}}
+\newcommand{\battleshipattackslot}{\mathsf{BS.attackslot}}
+\newcommand{\battleshipbegin}{\mathsf{BS.begingame}}
+\newcommand{\battleshipcommit}{\mathsf{BS.commitboards}}
+\newcommand{\battleshipselectboard}{\mathsf{BS.selectboard}}
+\newcommand{\battleshiprevealslot}{\mathsf{BS.revealslot}}
+\newcommand{\battleshipsinking}{\mathsf{BS.sinking}}
+\newcommand{\battleshiprevealboard}{\mathsf{BS.revealboard}}
+\newcommand{\battleshipgameover}{\mathsf{BS.gameover}}
 
 \newcommand{\appcontract}{\mathsf{AC}}
 \newcommand{\applock}{\mathsf{AC.lock}}
@@ -223,19 +248,79 @@ Notes: While all functionality is disabled on-chain; we need to be careful with 
 
 \section{Battleship within a State Channel} 
 
+In this section, we propose a protocol for the game battleship and demonstrate how it can be adopted to support state channels. 
+We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
+As we demonstrate later, this is crucial to minimise the cost when turning off the channel and executing the battleship via the blockchain. 
+
 \subsection{Battleship Game} 
-In this section, we propose evaluating state channels using a battleship game. 
 
-\paragraph{Set-up game} Both parties can commit to $N$ boards (via a merkle tree) and a list of ships (a hash with every position of ship). Each counterparty must pick one of the boards. All other $n-1$ boards must be revealed. If one board is fake, then the counterparty can use this alongside a fraud proof to penalise. If all $n$ boards is ok, then both parties can submit a message to say "lets continue the game" 
+At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 board. 
+Each ship must be placed on the board horizontally or vertically, and ships cannot be placed adjacent to each other (i.e. a ship must be surrounded by water if there is available space on the board). 
+To begin the game, we rely on a cut-and-choose protocol.
+First, each player commits to $N$ boards and a list ships for the corresponding board. 
+Second, the counter-party selects one board for the game and all other boards (including the list of ships) must be revealed. 
+If both parties are satisfied that all revealed boards are correct, then they can agree to initiate the game. 
+Otherwise, one of the invalid boards can be used as a proof of fraud to forfeit the cheater's deposit. 
+Each player takes a turn at shooting the counterparty's ship by requesting a slot on their board to be revealed within a fixed time period. 
+The counterparty must reveal the slot which indicates if a ship was indeed hit or not, and also signal whether a ship was sunk. 
+At the end of the game, the winner must reveal their board and the location of each ship to the loser.
+There is a fixed time period for the loser to respond with proof of fraud if the board was incorrectly setup and thus forfeit the cheater's deposit. 
 
-\paragraph{Game-play} A player selects a bit on the board, and the counter-party must reveal the commitment (i.e. $H(T/F,r)$). During this reveal, the counterparty sends a signed message $Sign(T/F,r,SUNK/NOTSUNK)$ i.e. player successful hit a spot, but the boat is not sunk. 
+In the following, we discuss in-detail how to set up the game, how the turn-based game works, and finally how to finish the game. 
 
-Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
-Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
+\paragraph{Game Phases} The contract controls the transition between five phases of the game $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner, \gamefinished\}$. 
+The $\gamesetup$ phase controls the process of each player committing to a board and a list of ships. 
+If both parties are satisfied, the contract transitions to $\gameattack$ to begin. the game.
+Game play involves several transitions between $\gameattack$ and $\gamereveal$ as each player takes turn shooting the counterparty's ships. 
+Eventually the game transitions to $\gamewinner$ which requires the winner to reveal their board and the corresponding list of ships. 
+This provides a fixed time period for the loser to provide proof of fraud that the board is not well-formed, otherwise the contract transitions to $\gamefinished$. 
+
+\paragraph{Representing board and ships} 
+A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b, r)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location and $r$ is a nonce.
+Each ship has a location $\hshiplocation := \hash(i,j,r)$, $i,j$ is the location of this position on the board and $r$ is a nonce, and a full ship is simply $\hship := \hash(\hshiplocation_{1},...,\hshiplocation_{k})$, where $k$ is the ship's length.
+
+\paragraph{Set-up game} The game state is set as $\gamestatus := \gamesetup$.
+Each party computes $N$ boards and a corresponding list of ship locations. 
+Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board. 
+Then, each party computes a merkle $\mathsf{root}_{\participant}$, where the leaf nodes are $\hready_{1},...,\hready_{n}$ and signs $\sigma_{\participant} := \sign_{\participant}(\mathsf{root}_{\participant}, \appcontract, \mathsf{round})$, where $\mathsf{round}$ is a monotonic counter to represent the game's round. 
+This root is signed and stored in the contract using $\battleshipcommit$. 
+
+Next both parties participate in the cut-and-choose protocol.
+Each party can select one board (and list of ships) $\hready$ the counterparty should keep secret using $\battleshipselectboard$ and the counterparty is required to reveal all other boards. 
+Each party can notify the contract that are ready to play game (and thus have checked all revealed boards)  using $\battleshipbegin$. 
+Of course, if any revealed board is invalid, then the party can submit proof of fraud to the contract using $\battleshipfraud$ which forfeits the counterparty's deposit.
+If the counter-party does not reveal any boards, then the party can signal their desire not to play the game using $\battleshipgameover$.\footnote{The counter-party can be forced to reveal every board on-chain, but this may be prohibitively expensive for $N-1$ boards.}
+
+\paragraph{Game-play} The game state transitions several times between $\gameattack$ and $\gamereveal$, and each player takes a turn at shooting the counterparty's board. 
+
+In the $\gameattack$ state, the player challenges the counterparty to reveal a given slot $i,j$ using $\battleshipattackslot$ which transitions the game state to $\gamereveal$. 
+The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether a ship has been $\mathsf{sunk}$.
+If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b,r, \instantiatedno, \appcontract)$.
+On the other hand if this shooting has sank a ship, then the counter-party responds using $\battleshipsinking$ with
+$\sign_{\participant}(b,r, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ is the randomness required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
+
 
 \paragraph{End of game} Winner must reveal their board, and the loser is provided a fixed time period to declare fraud. i.e. that the winners board was in fact fake. 
 
 \paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
+
+
+\subsection{Proof of Fraud}
+
+\paragraph{Claiming a ship was not sunk}
+
+Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
+Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
+
+\paragraph{Adjacent ships} 
+Provide two revealed ships, and the contract can check they are adjacent. 
+
+\paragraph{Ships not placed on the board}
+Requires revealed board and an opening to the ship locations. 
+
+\paragraph{Ships not placed horizontally or vertically} 
+Provide ship and contract can test whether it is in a straight line (either via i's or j's)
+
 
 \section{Experiment on Ethereum's Test Network}
 
