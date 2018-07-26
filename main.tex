@@ -31,7 +31,7 @@
 \newcommand{\instantiatedyes}{\mathsf{YES}}
 
 
-\newcommand{\gamestatus}{\mathsf{flag}}
+\newcommand{\gamestatus}{\mathsf{phase}}
 \newcommand{\gamesetup}{\mathsf{SETUP}}
 \newcommand{\gameattack}{\mathsf{ATTACK}}
 \newcommand{\gamereveal}{\mathsf{REVEAL}}
@@ -90,10 +90,17 @@
 \newcommand{\battleshiprevealboard}{\mathsf{BS.revealboard}}
 \newcommand{\battleshipgameover}{\mathsf{BS.gameover}}
 
+\newcommand{\battleshipadjacent}{\mathsf{BS.adjacentships}}
+\newcommand{\battleshipnotstraightline}{\mathsf{BS.notstraightline}}
+\newcommand{\battleshipshipnotplaced}{\mathsf{BS.shipnotplaced}}
+\newcommand{\battleshipnotsunk}{\mathsf{BS.declarednotsunk}}
+
 \newcommand{\appcontract}{\mathsf{AC}}
 \newcommand{\applock}{\mathsf{AC.lock}}
 \newcommand{\appunlock}{\mathsf{AC.unlock}}
 
+\newcommand{\timerchallenge}{\mathsf{\Delta}_{\mathsf{challenge}}}
+\newcommand{\timechallenge}{\mathsf{t}_{\mathsf{challenge}}}
 \newcommand{\timerdispute}{\mathsf{\Delta}_{\mathsf{dispute}}}
 \newcommand{\timenow}{\mathsf{t}_{\mathsf{now}}}
 \newcommand{\timestart}{\mathsf{t}_{\mathsf{start}}}
@@ -256,18 +263,19 @@ As we demonstrate later, this is crucial to minimise the cost when turning off t
 \subsection{Battleship Game} 
 
 At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
-Each ship is marked on the board horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Essentially, ships must be surrounded by water if there is available space on the board.} 
+Each ship is marked on the board in a straight line either horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Ships must be surrounded by water if there is available space on the board.} 
 A cut-and-choose protocol is used to set up the game. 
 Each player commits to $N$ boards (and list of ships) using $\battleshipcommit$ and the counterparty selects a single board $\battleshipselectboard$ to be used in the game. 
 Then, each player reveals all non-selected boards to counterparty which provides an opportunity to verify that all boards are well-formed.
 If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ (otherwise they may chose to quit using $\battleshipgameover$). 
-Once the game is set up, both players take turns at shooting the other player's board which follows a commit and reveal paradigm.
-One player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal it using $\battleshiprevealslot$ or $\battleshipsinking$ if this shot has revealed the final location for a ship (i.e. it is declared as sunk). 
-At the end, the winner must reveal their board and the every ship's location to the loser  using $\battleshiprevealboard$ and the loser is provided a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$. 
+Once the game is set up, both players take turns at shooting the other player's board.
+One player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal it using either $\battleshiprevealslot$ or $\battleshipsinking$ depending on whether this shot has revealed the final location for a ship (i.e. the opponent has sunk a ship and it must be declared). 
+At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
+The loser is provided a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$. 
 As well, throughout the game (including at the very end), the loser can submit a proof of fraud if an invalid board or list of ships can be detected. 
 In the following, we discuss in-detail how to set up the game, the turn-based mechanisms for shooting/revealing a slot on the board and  how to finish the game. 
 
-\paragraph{Game Phases} There are five phases $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
+\paragraph{Game Phases} There is $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
 The $\gamesetup$ phase is responsibe for selecting a single board (and a list of ships) for each player before the game begins.
 Game play involves several transitions between $\gameattack$ and $\gamereveal$ as both players take turns at shooting the counterparty's ships. 
 When one player wins the game, the game transitions to $\gamewinner$.
@@ -275,31 +283,33 @@ This requires the winner to reveal their board and the corresponding list of shi
 The loser is provided with a fixed time period to submit a proof of fraud that the winner's board is not well-formed, otherwise the contract transitions to $\gamefinished$. 
 
 \paragraph{Representing the board and ships} 
-For readability, we have removed the random nonce $r$ from all pre-images. 
-A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location.
-Each ship has a location $\hshiplocation := \hash(i,j)$, $i,j$ is the location of this position on the board and a full ship is simply $\hship := \hash(\hshiplocation_{1},...,\hshiplocation_{k})$, where $k$ is the ship's length.
+All slot and ship locations include a unique nonce $r$. 
+A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b, r)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location.
+Each ship has a location $\hshiplocation := \hash(i,j, r)$, where $i,j$ is the location of this position on the board and a full ship is $\hship := \hash(\hshiplocation_{1},...,\hshiplocation_{k})$, where $k$ is the ship's length.
 
 \paragraph{Set-up game} The game state is set as $\gamestatus := \gamesetup$.
-Each party computes $N$ boards and a corresponding list of ship locations. 
-Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board. 
+Each party computes $N$ boards and a corresponding list of ships. 
+Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board\footnote{We ignore the type of ships that constitutes a valid board in this description as this depends on the (fun) game logic.}. 
 Then, each party computes a merkle $\mathsf{root}_{\participant}$, where the leaf nodes are $\hready_{1},...,\hready_{n}$ and signs $\sigma_{\participant} := \sign_{\participant}(\mathsf{root}_{\participant}, \appcontract, \mathsf{round})$, where $\mathsf{round}$ is a monotonic counter to represent the new round. 
 This root (alongside the party's signature) is stored in the contract using $\battleshipcommit$. 
 
 Next both parties participate in the cut-and-choose protocol.
-Each party selects one board (and list of ships) the counterparty should keep secret using $\battleshipselectboard$ and the counterparty is required to reveal all other boards. 
-If satisified, each party notifies the contract that they are ready to play the game using $\battleshipbegin$ and thus have checked all revealed boards from the counterparty. 
+Each party selects one $\hready_{i}$ the counterparty should keep secret using $\battleshipselectboard$ and the counterparty is required to reveal all other boards. 
+If satisified, each party notifies the contract to begin the game  using $\battleshipbegin$ and thus they signal that all revealed boards from the counterparty are valid. 
 %On the other hand, if the counterparty reveals an invalid board, then the party can submit proof of fraud to the contract using $\battleshipfraud$ which forfeits the counterparty's deposit.
 If the counter-party does not reveal any boards (or any of the boards are invalid), then the party can signal their desire to quit  using $\battleshipgameover$.\footnote{The counter-party can be forced to reveal every board on-chain to test its validity and potentially forfeit their deposit, but this is prohibitively expensive for $N-1$ boards.}
+Finally $\mathsf{round}$ is incremented regardless if the game continues or not. 
 
-\paragraph{Game-play} The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player takes a turn at shooting the counterparty's board. 
+\paragraph{Game-play} \label{sec:gameplay}
+The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player takes a turn at shooting the counterparty's board. 
 
 In the $\gameattack$ phase, the player challenges the counterparty to reveal a given slot $i,j$ using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$. 
 The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether this shot has sunk a ship.
-If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b, i, j, \instantiatedno, \appcontract)$.
+If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b, r, i, j, \instantiatedno, \appcontract)$.
 On the other hand if this shot has sank a ship, then the counter-party responds using $\battleshipsinking$ with
-$\sign_{\participant}(b, i, j, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
+$\sign_{\participant}(b, r, i, j, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
 
-The game transitions to $\gamefraud$ if the maximum number of moves has been reached and no player has lost or it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
+The game transitions to $\gamefraud$ if the maximum number of possible moves has been exceedemor it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
 
 \paragraph{Fraud phase} 
 
@@ -318,21 +328,47 @@ After this time period, the winner can redeem their reward using $\battleshipgam
 
 The game relies on each player submitting a proof of fraud using $\battleshipfraud$ if an invalid board (or list of ships) is publicly detected.
 This is necessary as validating the board (and the list of ships) is a computationally expensive searching problem.\footnote{TODO: Can we get some evidence? or at least some intuition how long it takes? https://stackoverflow.com/questions/7501344/how-to-validate-battleship-field }  
-In the following, we define four different fraud proofs that can be submitted to the contract and verify that a board (or list of ships) is not well-formed. 
+In the following, we define four different fraud proofs that can be submitted to the contract which demonstrate that a revealed board or its corresponding list of ships is not well-formed. 
 
-\paragraph{Claiming a ship was not sunk}
-
-Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
-Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
-
-\paragraph{Adjacent ships} 
-Provide two revealed ships, and the contract can check they are adjacent. 
+\paragraph{Pre-images for slots or ship locations are not well-formed} 
+The contract will not accept the slots or ship locations using $\battleshiprevealboard$.
+This there is no need for a fraud proof as the player can never win the game. 
 
 \paragraph{Ships not placed on the board}
-Requires revealed board and an opening to the ship locations. 
+This proof assumes the full board and the ship locations are revealed. 
+The contract can verify that the pre-image of $\hslot$ indicates a marked position and it corresponds to the pre-image of a ship location $\hshiplocation$. 
+If a ship location claims to be located at $i,j$, but the location is not marked in $\hslot$, then it is easily verified as fraud.
+
+\paragraph{Adjacent ships} 
+We denote $i,j$ as the location for the first $\hshiplocation$ and $i',j'$ as the location for the second  $\hshiplocation'$. 
+The contract can verify that the ships are adjacent if  $i,j$ is within the range $i'\pm1, j'\pm1$ and of course that both ships are claimed to be in the same location. 
 
 \paragraph{Ships not placed horizontally or vertically} 
-Provide ship and contract can test whether it is in a straight line (either via i's or j's)
+The contract is provided with all pre-images for the entire ship $\hshiplocation, \hshiplocation$ and it can verify that either every location has the same $i$ or $j$ co-ordinate. 
+
+\paragraph{Ship was not declared as sunk}
+The counterparty can decide not to reveal that their ship was sunk and in effect waste the player's next turn. 
+It is possible for the player to prove during (or at the end) of the game that the counterparty did not declare that their ship was sunk. 
+As we mentioned in Section \ref{fig:statechannel}, if a ship was hit, but not declared as sunk, then the counterparty signs the following message: 
+
+\begin{center}
+$\sign_{\participant}(b, r, i, j, \instantiatedno, \appcontract)$.
+\end{center}
+
+Assuming all signed messages are stored by the non-cheating player, then there are two cases when they can be used.
+First, the player can finish the game early if their shots reveals two slots which are marked as water before and after a ship which has not been declared as sunk.
+The player can provide $\battleshipnotsunk$ with the list of signed reveal messages from the counterparty which indicates the ship was not sunk and the two additional slots marked as water. 
+The contract can simply verify that the two slots are indeed before and after the ship, and that the counterparty did not declare the ship as sunk after any shots.
+Second, the two additional slots are not required when $\gamestatus := \gamewinner$ as the full board (and list of ships) are revealed. 
+The player can simply provide the list of signed reveal messages from the counterparty and identify which ship should have been sunk. 
+The contract can verify that the counterparty did not declare the ship as sunk, but the ship was indeed fully hit. 
+
+%partially revealed board demonstrates 
+%Crucially, this fraud proof is also valid in $\gamestatus := \gamewinner$ after the winner's board is revealed. 
+
+%Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
+%Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages %say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
+
 
 \subsection{Modifying to satisify state channels}
 
