@@ -86,7 +86,7 @@
 \newcommand{\battleshipcommit}{\mathsf{BS.commitboards}}
 \newcommand{\battleshipselectboard}{\mathsf{BS.selectboard}}
 \newcommand{\battleshiprevealslot}{\mathsf{BS.revealslot}}
-\newcommand{\battleshipsinking}{\mathsf{BS.sinking}}
+\newcommand{\battleshipsinking}{\mathsf{BS.sunk}}
 \newcommand{\battleshiprevealboard}{\mathsf{BS.revealboard}}
 \newcommand{\battleshipgameover}{\mathsf{BS.gameover}}
 
@@ -255,20 +255,17 @@ As we demonstrate later, this is crucial to minimise the cost when turning off t
 
 \subsection{Battleship Game} 
 
-\textcolor{purple}{paddy: fix up intro. we also need to explicitly define the algorithms behind a function call - perhaps a table or two in the appendix}
-At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 board. 
-Each ship must be placed on the board horizontally or vertically, and ships cannot be placed adjacent to each other (i.e. a ship must be surrounded by water if there is available space on the board). 
-To begin the game, we rely on a cut-and-choose protocol.
-First, each player commits to $N$ boards and a list ships for the corresponding board. 
-Second, the counter-party selects one board for the game and all other boards (including the list of ships) must be revealed. 
-If both parties are satisfied that all revealed boards are correct, then they can agree to initiate the game. 
-Otherwise, one of the invalid boards can be used as a proof of fraud to forfeit the cheater's deposit. 
-Each player takes a turn at shooting the counterparty's ship by requesting a slot on their board to be revealed within a fixed time period. 
-The counterparty must reveal the slot which indicates if a ship was indeed hit or not, and also signal whether a ship was sunk. 
-At the end of the game, the winner must reveal their board and the location of each ship to the loser.
-There is a fixed time period for the loser to respond with proof of fraud if the board was incorrectly setup and thus forfeit the cheater's deposit. 
-
-In the following, we discuss in-detail how to set up the game, how the turn-based game works, and finally how to finish the game. 
+At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
+Each ship is marked on the board horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Essentially, ships must be surrounded by water if there is available space on the board.} 
+A cut-and-choose protocol is used to set up the game. 
+Each player commits to $N$ boards (and list of ships) using $\battleshipcommit$ and the counterparty selects a single board $\battleshipselectboard$ to be used in the game. 
+Then, each player reveals all non-selected boards to counterparty which provides an opportunity to verify that all boards are well-formed.
+If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ (otherwise they may chose to quit using $\battleshipgameover$). 
+Once the game is set up, both players take turns at shooting the other player's board which follows a commit and reveal paradigm.
+One player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal it using $\battleshiprevealslot$ or $\battleshipsinking$ if this shot has revealed the final location for a ship (i.e. it is declared as sunk). 
+At the end, the winner must reveal their board and the every ship's location to the loser  using $\battleshiprevealboard$ and the loser is provided a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$. 
+As well, throughout the game (including at the very end), the loser can submit a proof of fraud if an invalid board or list of ships can be detected. 
+In the following, we discuss in-detail how to set up the game, the turn-based mechanisms for shooting/revealing a slot on the board and  how to finish the game. 
 
 \paragraph{Game Phases} There are five phases $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
 The $\gamesetup$ phase is responsibe for selecting a single board (and a list of ships) for each player before the game begins.
@@ -319,9 +316,9 @@ After this time period, the winner can redeem their reward using $\battleshipgam
 
 \subsection{Proof of Fraud}
 
-Throughout the battleship game, we proposed that a submit fraud proof can be submitted using $\battleshipfraud$.
-Fraud proofs are necessary to avoid the contract performing computationally expensive searches to check whether a given board and its corresponding list of ships is invalid. 
-In the following, we highlight five different fraud proofs that can be submitted to demonstrate that a board (or list of ships) is not well-formed. 
+The game relies on each player submitting a proof of fraud using $\battleshipfraud$ if an invalid board (or list of ships) is publicly detected.
+This is necessary as validating the board (and the list of ships) is a computationally expensive searching problem.\footnote{TODO: Can we get some evidence? or at least some intuition how long it takes? https://stackoverflow.com/questions/7501344/how-to-validate-battleship-field }  
+In the following, we define four different fraud proofs that can be submitted to the contract and verify that a board (or list of ships) is not well-formed. 
 
 \paragraph{Claiming a ship was not sunk}
 
