@@ -149,7 +149,7 @@ In Pisa - dispute process extends Sprites, but adds privacy-preserving feature -
 
 %We propose a state channel contract and modifications to an application contract that is required to support the state channel.
 We propose a new state channel contract $\statechannel$ and the modifications required for an application contract $\appcontract$  to support state channels. 
-This modification includes a mechanism for locking (and unlocking) the application into a state channel upon approval of all parties. 
+This modification provides a mechanism for locking (and unlocking) the application into a state channel upon approval of all parties. 
 
 At a high level, the locking mechanism $\applock$ disables all functionality within the application contract and instantiates the state channel contract. 
 Once locked, all parties execute the application off-chain amongst themselves by proposing state transitions and co-operatively signing a hash for every new state (alongside an incremented counter). 
@@ -170,17 +170,18 @@ In the following, we present the new state channel contract and the modification
 %The state channel contract manages the dispute process and it is responsible for determining the state commitment that is used by the application contract before its functionality is re-enabled to permit on-chain state transitions. 
 We provide an overview of the state channel construction before discussing how to set it up, how participants authorise state transitions off-chain and how the dispute process allows the contract to accept a final state commitment. 
 
-\paragraph{Overview of the channel contract} 
+\paragraph{Overview of the state channel contract} 
 Figure \ref{fig:statechannel} presents an overview of the state channel contract. 
 It contains a list of parties $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, the application contract's address $\appcontract$ and a  $\chanstatus = \{\chanon, \chandispute, \chanoff\}.$
+
 Upon creation, the contract is set as $\chanstatus := \chanon$ and all parties can collectively execute the application by signing every new state hash (and an incremented nonce).
 This is denoted as $\sigma_{\participant} := \sign_{\participant}(\hstatei, \monotoniccounter)$, where  $\hstatei = \hash(\stateinfoi, \rani)$ is the state hash ($\ran$ is a nonce) and $\monotoniccounter$ is an incremented monotonic counter. 
 A state hash is only considered valid when each party has a signature from every other party. 
-If one party does not sign the state hash, then any party can trigger a dispute using $\statechanneldispute$ which sets $\chanstatus := \chandispute$. 
+If one party aborts and does not sign the state hash, then any party can turn off the channel by triggering a dispute using $\statechanneldispute$ which sets $\chanstatus := \chandispute$. 
+
 This provides a fixed time period between $\timenow$ and $\timedispute$ for all parties to respond using $\statechannelsetstate$ with $\hstate$, its monotonic counter $\monotoniccounter$ and a corresponding signature from every party $\Sigma_{\participant}$. 
 Afterwards, any party can resolve the dispute using $\statechannelresolve$ which sets $\chanstatus := \chanoff$ and allows the final $\hstatei$ to be fetched by $\appcontract$ using  $\statechannelgetcommitment$. 
-Finally the dispute time period $\timenow$, $\timedispute$ and the final monotonic counter $\monotoniccounter$ is recorded.
-This dispute record can later be fetched using $\statechannelgetdispute$. 
+Finally the dispute time period and the final counter is recorded which can later be fetched using $\statechannelgetdispute$. 
 %
 %
 %This command alongside a commitment to the new state and 
@@ -199,15 +200,15 @@ As we discuss in the next section, all functionality in the application contract
 \paragraph{Authorising off-chain state hashes}
 A command $\cmd$ is a function call within the application contract.
 Any party can select a command $\cmd$ and propose a new state transition $\stateinfoplus := \mathsf{transition}(\stateinfoi, \cmd)$.
-The state channel is independent of the application and requires a hash of the new state  $\hstateplus = \hash(\stateinfoplus, \ranplus)$ to be computed and signed  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$.
-In order to finalise the state transition, the proposer  must send $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties for their approval.
+The new state is hashed  $\hstateplus = \hash(\stateinfoplus, \ranplus)$ and signed  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$.
+To finalise the state transition, the proposer sends $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties for their approval.
 
-All other parties in the channel must verify the state transition before authorising it. 
+All other parties in the channel verify the state transition before authorising it. 
 To verify, each party re-computes the state transition $\stateinfoplus' := \mathsf{transition}(\stateinfoi, \cmd)$ and the state hash $\hstateplus' := \hash(\stateinfoplus', \ranplus)$.
-Then, each party verifies  ($\hstateplus', \monotoniccounter+1$ corresponds to the signature received $\sigma_{\participant}$ and that $\monotoniccounter+1$ represents the largest monotonic counter so far. 
-If satisfied, each party signs the state hash  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1, \statechannel, \appcontract)$ and sends the state information  $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties. 
+Then, each party verifies the received signature $\verifysig(\participant, (\hstateplus', \monotoniccounter+1), \sigma_{\participant})$ and that the counter is the largest received so far. 
+If satisfied, each party signs the state hash  $\sigma_{k} := \sign(\hstateplus,\monotoniccounter+1, \statechannel, \appcontract)$ and sends their signature alongside the state information $\cmd,\hstateplus, \stateinfoplus, \ranplus, \sigma_{k}$ to all other parties. 
 
-This state transition is only considered valid when each party has received a signature from every other party for $(\hstatei, \monotoniccounter+1)$. If one party does not receive all signatures within a local time-out, then this party can trigger the dispute process to turn off the channel and continue the application's execution on-chain. 
+The new state hash is only considered valid when each party has received a signature from every other party.  If one party does not receive all signatures within a local time-out, then this party can trigger the dispute process to turn off the channel and continue the application's execution on-chain. 
 
 \paragraph{Dispute process.} 
 
@@ -218,13 +219,15 @@ After the dispute period has expired, any party can resolve it using $\statechan
 
 \subsection{Application Contract}
 
-We provide an overview of template required for an application contract to support state channels. 
-We discuss how to disable functionality in $\appcontract$ after instantiating the state channel and how to re-enable the application to support continuous on-chain execution after turning off the state channel. 
+We propose a state channel template to modify an application contract. 
+The template disables all functionality in an$\appcontract$  after instantiating the state channel and re-enables the application to support continuous on-chain execution after turning off the state channel. 
+In the following, we provide an overview of the template before discussing the locking and unlocking mechanism. 
 
-\paragraph{Overview of modifications}
-Figure \ref{fig:appmodify} presents an overview of the application contract template that must be adopted in order to support a state channel.
-It should explicitly record a list of participants $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, whether the channel has been instantiated  $\instantiated := \{\instantiatedyes, \instantiatedno\}$ and the address of $\statechannel$. 
-All functions within the application require a new pre-condition to check whether the state channel is instantiated, and it should only permit execution if $\instantiated = \instantiatedno$. 
+
+\paragraph{Overview of template. }
+Figure \ref{fig:appmodify} presents an overview of the application contract template.
+After modifications, the application contract must explicitly record a list of participants $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, whether the state channel has been instantiated  $\instantiated := \{\instantiatedyes, \instantiatedno\}$ and if so it also stores the state channel's address  $\statechannel$. 
+All functions within the application require a new pre-condition to check whether the state channel is instantiated and should only permit execution if $\instantiated = \instantiatedno$. 
 Finally the application must include two new functions $\applock$ that instantiates the state channel upon approval of all parties and $\appunlock$ that verifies a copy of the full state before re-enabling the application. 
 
 
@@ -235,7 +238,7 @@ Finally the application must include two new functions $\applock$ that instantia
 
 
  
-\paragraph{Lock Application Contract} All parties must approve to instantiating the state channel by signing $(\chanon, \appcontract, \timerdispute, \mathsf{k}$), where $\chanon$ signals turning on the channel, $\mathsf{k}$ is an incremented counter to ensure freshness of the signed message and $\timerdispute$ is the fixed time period for the dispute process. 
+\paragraph{Lock application contract} All parties must approve to instantiating the state channel by signing $(\chanon, \appcontract, \timerdispute, \mathsf{k}$), where $\chanon$ signals turning on the channel, $\mathsf{k}$ is an incremented counter to ensure freshness of the signed message and $\timerdispute$ is the fixed time period for the dispute process. 
 Any party can call $\applock$ with the list of signatures $\Sigma_{\participant}$, $\timerdispute$ and $\mathsf{k}$ to turn on the state channel. 
 The application contract $\appcontract$ verifies all signatures and that $\mathsf{k}$ represents the largest counter received so far.
 If satisfied, $\appcontract$ sets  $\instantiated := \instantiatedyes$ effectively disables all functionality within the application.
@@ -243,39 +246,45 @@ Next $\appcontract$ creates the state channel contract $\statechannel$ which set
 Finally $\appcontract$ stores the state channel address $\statechannel$. 
  
 
-\paragraph{Unlock Application Contract}
+\paragraph{Unlock application contract}
 
-After the dispute process has concluded in $\statechannel$, one party must send  $\stateinfoi,\rani$ using $\appunlock$ before the functionality can be re-enabled.
-The application contract verifies that $\stateinfoi$  indeed represents the final state by computing $\hstatei' := \hash(\stateinfoi, \rani)$, fetching the final state hash $\hstatei$ from $\statechannel$ using $\statechannelgetcommitment$ and checking  $\hstatei' = \hstatei$. 
-If satisfied, $\appcontract$ stores $\stateinfoi$ and re-enables all functionality by setting $\instantiated :=  \instantiatedno$. 
-Of course, if there is no activity within the state channel then the state channel contract's dispute process can expiry  without a submitted $\hstatei$.
+After the dispute process has concluded in $\statechannel$, one party must send  $\stateinfoi',\rani'$ using $\appunlock$ before the functionality can be re-enabled.
+The application contract verifies that $\stateinfoi'$  indeed represents the final state by computing $\hstatei' := \hash(\stateinfoi', \rani')$, fetching the final state hash $\hstatei$ from $\statechannel$ using $\statechannelgetcommitment$ and checking  $\hstatei' = \hstatei$. 
+If satisfied, $\appcontract$ stores $\stateinfoi'$ and re-enables all functionality by setting $\instantiated :=  \instantiatedno$. 
+Of course, if there is no activity within the state channel, then the state channel contract's dispute process can expiry without a submitted $\hstatei$.
 In this case, the application contract verifies the state channel returns $\emptyset$ and re-enables all functionality without modifying the existing state. 
 
 
-Notes: While all functionality is disabled on-chain; we need to be careful with how parties execute it off-chain! Not all functionality can be supported off-chain (i.e. contract to contract interaction); so this needs to be considered. 
+%Notes: While all functionality is disabled on-chain; we need to be careful with how parties execute it off-chain! Not all functionality can be supported off-chain (i.e. contract to contract interaction); so this needs to be considered. 
 
 \section{Battleship within a State Channel} 
 
-In this section, we propose a protocol for the game battleship and demonstrate how it can be adopted to support state channels. 
+In this section, we propose a contract for the game battleship and demonstrate how it can be adopted to support state channels. 
 We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
-As we demonstrate later, this is crucial to minimise the cost when turning off the channel and executing the battleship via the blockchain. 
+As we demonstrate later, this is crucial to minimise the cost of executing the game via the blockchain after the channel is turned off. 
 
 \subsection{Battleship Game} 
 
 At a high level, battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
 Each ship is marked on the board in a straight line either horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Ships must be surrounded by water if there is available space on the board.} 
+
 A cut-and-choose protocol is used to set up the game. 
 Each player commits to $N$ boards (and list of ships) using $\battleshipcommit$ and the counterparty selects a single board $\battleshipselectboard$ to be used in the game. 
 Then, each player reveals all non-selected boards to counterparty which provides an opportunity to verify that all boards are well-formed.
 If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ (otherwise they may chose to quit using $\battleshipgameover$). 
+
 Once the game is set up, both players take turns at shooting the other player's board.
-One player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal it using either $\battleshiprevealslot$ or $\battleshipsinking$ depending on whether this shot has revealed the final location for a ship (i.e. the opponent has sunk a ship and it must be declared). 
+Each player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal the slot's opening.
+The counterparty can call $\battleshiprevealslot$ which will reveal the slot and whether it was a successful hit on a ship.
+Otherwise,  if this shot resulted in the sinking of a ship, then the counterparty calls $\battleshipsinking$ which reveals the slot and the sunk ship. 
+Throughout the game, the loser may have an opportunity submit a proof of fraud if it is detectable that the counterparty's board (or list of ships) is invalid. 
+
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
-The loser is provided a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$. 
-As well, throughout the game (including at the very end), the loser can submit a proof of fraud if an invalid board or list of ships can be detected. 
+The loser has a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$, otherwise either player calls $\battleshipgameover$ to finish the game. 
+
 In the following, we discuss in-detail how to set up the game, the turn-based mechanisms for shooting/revealing a slot on the board and  how to finish the game. 
 
-\paragraph{Game Phases} There is $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
+\paragraph{Game Phases} There are five phases $\gamestatus := \{\gamesetup, \gameattack, \gamereveal, \gamewinner,$ $ \gamefinished\}$. 
 The $\gamesetup$ phase is responsibe for selecting a single board (and a list of ships) for each player before the game begins.
 Game play involves several transitions between $\gameattack$ and $\gamereveal$ as both players take turns at shooting the counterparty's ships. 
 When one player wins the game, the game transitions to $\gamewinner$.
@@ -289,7 +298,7 @@ Each ship has a location $\hshiplocation := \hash(i,j, r)$, where $i,j$ is the l
 
 \paragraph{Set-up game} The game state is set as $\gamestatus := \gamesetup$.
 Each party computes $N$ boards and a corresponding list of ships. 
-Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board\footnote{We ignore the type of ships that constitutes a valid board in this description as this depends on the (fun) game logic.}. 
+Next, each party computes $\hready_{i} := \hash(\hboard, \hship_{1},...,\hship_{k})$ where $k$ is the number of ships for this board\footnote{We ignore the type of ships that constitutes a valid board as this depends on the (fun) game logic.}. 
 Then, each party computes a merkle $\mathsf{root}_{\participant}$, where the leaf nodes are $\hready_{1},...,\hready_{n}$ and signs $\sigma_{\participant} := \sign_{\participant}(\mathsf{root}_{\participant}, \appcontract, \mathsf{round})$, where $\mathsf{round}$ is a monotonic counter to represent the new round. 
 This root (alongside the party's signature) is stored in the contract using $\battleshipcommit$. 
 
@@ -303,19 +312,19 @@ Finally $\mathsf{round}$ is incremented regardless if the game continues or not.
 \paragraph{Game-play} \label{sec:gameplay}
 The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player takes a turn at shooting the counterparty's board. 
 
-In the $\gameattack$ phase, the player challenges the counterparty to reveal a given slot $i,j$ using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$. 
-The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether this shot has sunk a ship.
-If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ and the signed message $\sign_{\participant}(b, r, i, j, \instantiatedno, \appcontract)$.
+In the $\gameattack$ phase, the player challenges the counterparty to reveal a slot $i,j$ using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$. 
+The counterparty has a fixed time period to respond with an opening of $\hslot_{i,j}$ alongside whether this shot has sank a ship.
+If this shooting has not sank a ship, then the counter-party responds using $\battleshiprevealslot$ with the signed message $\sign_{\participant}((b, r), (i, j), \instantiatedno, \appcontract)$.
 On the other hand if this shot has sank a ship, then the counter-party responds using $\battleshipsinking$ with
-$\sign_{\participant}(b, r, i, j, \instantiatedyes, r_{1},...,r_{k}, \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1}$,...,$\hshiplocation_{k}$. 
+$\sign_{\participant}((b, r), (i, j), \instantiatedyes, $ $(r_{1},...,r_{k}), \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1},...,$ $\hshiplocation_{k}$. 
 
-The game transitions to $\gamefraud$ if the maximum number of possible moves has been exceedemor it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
+The game transitions to $\gamefraud$ if the maximum number of possible moves has been exceeded or it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
 
 \paragraph{Fraud phase} 
 
 If the game transitions to $\gamefraud$, then the party who has revealed an erronenous number of slots loses their deposit.
 The counterparty must reveal their full board and a fixed time period is enforced to permit time for the party to submit a proof of fraud using $\battleshipfraud$. 
-Again, if fraud is proven then both parties forfeit their deposit. 
+Again, if fraud is proven then both parties forfeit their deposit, otherwise the loser wins and the game transitions to $\gamefinished$ 
 
 \paragraph{End of game} 
 
@@ -328,40 +337,40 @@ After this time period, the winner can redeem their reward using $\battleshipgam
 
 The game relies on each player submitting a proof of fraud using $\battleshipfraud$ if an invalid board (or list of ships) is publicly detected.
 This is necessary as validating the board (and the list of ships) is a computationally expensive searching problem.\footnote{TODO: Can we get some evidence? or at least some intuition how long it takes? https://stackoverflow.com/questions/7501344/how-to-validate-battleship-field }  
-In the following, we define four different fraud proofs that can be submitted to the contract which demonstrate that a revealed board or its corresponding list of ships is not well-formed. 
+In the following, we highlight that the committed data must be correctly formatted in order to win the game before defining  four different fraud proofs that can be submitted to the contract which demonstrate that the revealed board or its corresponding list of ships are not well-formed. 
 
-\paragraph{Pre-images for slots or ship locations are not well-formed} 
-The contract will not accept the slots or ship locations using $\battleshiprevealboard$.
-This there is no need for a fraud proof as the player can never win the game. 
+\paragraph{Pre-images for slots or ship locations are not formatted correctly} 
+The contract cannot process the slots or ship locations using $\battleshiprevealboard$ if the pre-image of any hashes are not correctly formatted and thus the cheating player can never win the game.
+As a result, our fraud proofs focus on information stored within a correctly formatted pre-image of a hash and proves if the game logic was violated.
+For example, $i,j$ within a $\hslot$ must be a valid position on the board. 
 
 \paragraph{Ships not placed on the board}
 This proof assumes the full board and the ship locations are revealed. 
-The contract can verify that the pre-image of $\hslot$ indicates a marked position and it corresponds to the pre-image of a ship location $\hshiplocation$. 
-If a ship location claims to be located at $i,j$, but the location is not marked in $\hslot$, then it is easily verified as fraud.
+The contract can verify whether the ship location $i,j$ of $\hshiplocation$ was indeed marked on the board at $\hslot_{i,j}$. 
 
 \paragraph{Adjacent ships} 
 We denote $i,j$ as the location for the first $\hshiplocation$ and $i',j'$ as the location for the second  $\hshiplocation'$. 
-The contract can verify that the ships are adjacent if  $i,j$ is within the range $i'\pm1, j'\pm1$ and of course that both ships are claimed to be in the same location. 
+The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i'\pm1, j'\pm1$ or if they claim to be at the same location $i,j = i',j'$.
 
 \paragraph{Ships not placed horizontally or vertically} 
-The contract is provided with all pre-images for the entire ship $\hshiplocation, \hshiplocation$ and it can verify that either every location has the same $i$ or $j$ co-ordinate. 
+The contract is provided with all pre-images for the entire ship $\hshiplocation_{1}, ..., \hshiplocation_{k}$.
+To verify a ship is straight, the contract verifies if every location has the same $i$ or $j$ co-ordinate. 
+To verify a ship is a line, one of the co-ordinates $i$ or $j$ must increment (or decrement) strictly by one for every ship location. 
 
 \paragraph{Ship was not declared as sunk}
 The counterparty can decide not to reveal that their ship was sunk and in effect waste the player's next turn. 
-It is possible for the player to prove during (or at the end) of the game that the counterparty did not declare that their ship was sunk. 
-As we mentioned in Section \ref{fig:statechannel}, if a ship was hit, but not declared as sunk, then the counterparty signs the following message: 
-
-\begin{center}
+It is possible for the player to prove during (or at the end) of the game that the counterparty cheated by not declaring their ship as sunk.  
+As we mentioned in Section \ref{fig:statechannel}, if a ship was hit, but not declared as sunk, then the counterparty signs a reveal message 
 $\sign_{\participant}(b, r, i, j, \instantiatedno, \appcontract)$.
-\end{center}
+
 
 Assuming all signed messages are stored by the non-cheating player, then there are two cases when they can be used.
-First, the player can finish the game early if their shots reveals two slots which are marked as water before and after a ship which has not been declared as sunk.
+In the first case, the player can finish the game early if their shots reveals two slots which are marked as water before and after a ship which has not been declared as sunk.
 The player can provide $\battleshipnotsunk$ with the list of signed reveal messages from the counterparty which indicates the ship was not sunk and the two additional slots marked as water. 
-The contract can simply verify that the two slots are indeed before and after the ship, and that the counterparty did not declare the ship as sunk after any shots.
-Second, the two additional slots are not required when $\gamestatus := \gamewinner$ as the full board (and list of ships) are revealed. 
-The player can simply provide the list of signed reveal messages from the counterparty and identify which ship should have been sunk. 
-The contract can verify that the counterparty did not declare the ship as sunk, but the ship was indeed fully hit. 
+The contract can simply verify the two slots are indeed before and after the ship, and that the counterparty did not declare their ship as sunk after all successful shots.
+In the second case, the additional two slots are not required when $\gamestatus := \gamewinner$ as the full board (and list of ships) are revealed. 
+The player can simply provide the list of signed reveal messages from the counterparty and identify which ship was sunk. 
+The contract can verify the counterparty did not declare the ship as sunk, but the ship was indeed fully hit. 
 
 %partially revealed board demonstrates 
 %Crucially, this fraud proof is also valid in $\gamestatus := \gamewinner$ after the winner's board is revealed. 
@@ -370,7 +379,7 @@ The contract can verify that the counterparty did not declare the ship as sunk, 
 %Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages %say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
 
 
-\subsection{Modifying to satisify state channels}
+\subsection{Modifying battleships to support state channels}
 
 \paragraph{Modify all functions to be disabled if state channel is created}
 
@@ -394,7 +403,7 @@ There is no incentive for the counterparty to authorise a state where their frau
 
 This also raises the problem of splitting transaction fees. In a 2 party channel it is straight-forward (i.e. split half way), but in a n-party channel - the griefer can cause a multiplier of fee cost to everyone. Even worst as mentioned before - no evidence who the griefer is! 
 
-\paragraph{Contract creation} Does the app contract create state channel? Or should the state channel create the application? Related to funfair dilemma - one assumes contract is already on-chain, other assumes it is created off-chain. 
+\paragraph{Chicke and egg problem} Does the app contract create state channel? Or should the state channel create the application? Related to funfair dilemma - one assumes contract is already on-chain, other assumes it is created off-chain. 
 
 
 \paragraph{Applications of state channels} All parties must remain on-line for the execution of a state channel. As a result, applications may be context-specific (i.e. quick auctions for buying/selling AdWords, but not for the Ethereum Name Service). 
