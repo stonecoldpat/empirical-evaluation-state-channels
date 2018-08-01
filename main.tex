@@ -84,8 +84,8 @@
 \newcommand{\battleshipfraud}{\mathsf{BS.fraud}}
 \newcommand{\battleshipattackslot}{\mathsf{BS.attackslot}}
 \newcommand{\battleshipbegin}{\mathsf{BS.begingame}}
-\newcommand{\battleshipcommit}{\mathsf{BS.commitboards}}
-\newcommand{\battleshipselectboard}{\mathsf{BS.selectboard}}
+\newcommand{\battleshipcommit}{\mathsf{BS.setupcommit}}
+\newcommand{\battleshipselectboard}{\mathsf{BS.setupselect}}
 \newcommand{\battleshiprevealslot}{\mathsf{BS.revealslot}}
 \newcommand{\battleshipsinking}{\mathsf{BS.sunk}}
 \newcommand{\battleshiprevealboard}{\mathsf{BS.revealboard}}
@@ -230,7 +230,7 @@ The template disables all functionality in $\appcontract$  after instantiating t
 In the following, we provide an overview of the template before discussing the locking and unlocking mechanism. 
 
 
-\paragraph{Overview of template. }
+\paragraph{Overview of template. } \label{sec:template} 
 Figure \ref{fig:appmodify} presents an overview of the application contract template.
 After modifications, the application contract must explicitly record a list of participants $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, whether the state channel has been instantiated  $\instantiated := \{\instantiatedyes, \instantiatedno\}$ and if so it also stores the state channel's address  $\statechannel$. 
 All functions within the application require a new pre-condition to check whether the state channel is instantiated and should only permit execution if $\instantiated = \instantiatedno$. 
@@ -265,26 +265,40 @@ In this case, the application contract verifies the state channel returns $\empt
 
 \section{Battleship within a State Channel} 
 
-Battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
-Each ship is marked on the board in a straight line either horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Ships must be surrounded by water if there is available space on the board.}.
 %In this section, we propose tow contracts for the game battleship and demonstrate how it can be adopted to support state channels. 
 %One battleship game relies on a commitment to every slot in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
 %We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
+We provide a high-level overview of the battleship game before proposing two smart contracts. 
+The first contract requires a commitment to every slot in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
+Afterwards we discuss how to overcome the computational limitation of checking a full board's validity by relying on a challenge-response protocol (i.e. a dispute process).
+This provides a fixed time period for a player to submit a proof of fraud that the counterparty's board is invalid and if the proof is correct then the contract atomically forfeits the counterparty's deposit. 
+Finally we present how to convert both contracts to support state channels using the template in Section \ref{sec:template}. 
+%We propose two contracts for the battleship game where one game has a commitment to every slot in the grid $\hslot_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
+%Afterwards, we present the fraud proofs which are compatible with both contracts and how to convert them to support state channels. 
 
-We propose two contracts for the battleship game where one game has a commitment to every slot in the grid $\hslot_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
-Afterwards, we present the fraud proofs which are compatible with both contracts and how to convert them to support state channels. 
+\subsection{Overview of Battleship Contracts}
 
-\subsection{Overview of Battleship}
+Battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
+Each ship must be marked in a straight line either horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Ships must be surrounded by water if there is available space on the board.}.
 
-To set up the battleship game, both parties participate in a cut-and-choose protocol. 
-Each player commits to $N$ boards (and list of ships) using $\battleshipcommit$ and the counterparty selects a single board $\battleshipselectboard$ to be used in the game. 
-Then, each player reveals all non-selected boards to counterparty which provides an opportunity to verify that all boards are well-formed.
-If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ (otherwise they may chose to quit using $\battleshipgameover$). 
-Once the game is set up, both players take turns at shooting the other player's board.
-In each turn, the player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must reveal the slot's opening within a fixed time period. 
-The counterparty can call $\battleshiprevealslot$ which will reveal the slot and whether it was a successful hit on a ship.
-Otherwise,  if this shot resulted in the sinking of a ship, then the counterparty calls $\battleshipsinking$ which reveals the slot and the sunk ship. 
-Throughout the game, the loser may have an opportunity submit a proof of fraud if it is detectable that the counterparty's board (or list of ships) is invalid. 
+To set up the game, both parties participate in a cut-and-choose protocol.
+Each player commits to a list of $N$ boards (or $N$ lists of ships) using $\battleshipcommit$. 
+The counterparty selects one board (or list of ships) for the player using $\battleshipselectboard$.
+Once selected, each player reveals the remaining $N-1$ boards (or list of ships) to the counterparty. 
+If both parties are satisified that all revealed boards are well-formed, they can signal to begin the game using $\battleshipbegin$, otherwise they may chose to quit using $\battleshipgameover$. 
+
+%In the first contract, each player commits to $N$ boards using $\battleshipcommit$, whereas in the second contract each player simply commits to $N$ lists of ships. 
+%Next, the counterparty selects a single board (or a single list of ships) using $\battleshipselectboard$. 
+%Then, each player reveals all non-selected boards and list of ships to counterparty and this provides them an opportunity to verify all boards (and list of ships) are well-formed. 
+%If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ 
+%Once the game is set up, both players take turns at shooting the other player's board.
+In each turn, the player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must open the slot  within a fixed challenge time period. 
+To open, the counterparty reveal if the slot is occupied by water or a ship location using $\battleshiprevealslot$ which also indicates if it was a successful shot. 
+If the player also sinks a shop, then the counterparty must reveal the full ship (alongside the slot's opening) using $\battleshipsinking$. 
+The slot's opening (and if a ship was sunk) is recorded in the contract. 
+Of course, the player is provided another turn if their shot was successful.
+Throughout the game, the loser may have an opportunity submit a proof of fraud using $\battleshipfraud$ if it is detectable the counterparty's board (or list of ships) is invalid. 
+
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
 The loser has a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$, otherwise either player calls $\battleshipgameover$ to finish the game. 
 
@@ -462,6 +476,8 @@ This also raises the problem of splitting transaction fees. In a 2 party channel
 \paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
  
 \appendix
+
+\section{Security Analysis for Battleship Game}
 
 
 \begin{figure}[h]
