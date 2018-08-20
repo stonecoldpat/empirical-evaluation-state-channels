@@ -277,26 +277,30 @@ In this case, the application contract verifies the state channel returns $\empt
 %In this section, we propose tow contracts for the game battleship and demonstrate how it can be adopted to support state channels. 
 %One battleship game relies on a commitment to every slot in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
 %We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
-We provide a high-level overview of the battleship game before proposing two smart contracts. 
-The first contract requires a commitment to every slot in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
-Afterwards we discuss how to overcome the computational limitation of checking a full board's validity by relying on a challenge-response protocol. 
-This provides a fixed time period for a player to submit a proof of fraud that the counterparty's board is invalid.
-If the fraud proof is correct (and accepted), then the contract atomically forfeits the counterparty's deposit. 
-Finally we present how to convert both contracts to support state channels using the template in Section \ref{sec:template}. 
+We provide a high-level overview of the game battleship before proposing how to implement it as a smart contract.  
+In our proposed protocol, we demonstrate how to overcome the computational limitation of checking the validity of a player's board using fraud proofs via a challenge-response protocol. 
+Afterwards we present how to convert the battleship game to support state channels using the template in Section $\ref{sec:template}$. 
+%To play the game requires both parties to commit to a list of ships 
+%To overcome the computational limitation of checking the validity of a battleship game, we demonstrate how to use fraud proofs 
+%The first contract requires a commitment to every slot in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
+%Afterwards we discuss how to overcome the computational limitation of checking a full board's validity by relying on a challenge-response protocol. 
+%This provides a fixed time period for a player to submit a proof of fraud that the counterparty's board is invalid.
+%If the fraud proof is correct (and accepted), then the contract atomically forfeits the counterparty's deposit. 
+%Finally we present how to convert both contracts to support state channels using the template in Section \ref{sec:template}. 
 %We propose two contracts for the battleship game where one game has a commitment to every slot in the grid $\hslot_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
 %Afterwards, we present the fraud proofs which are compatible with both contracts and how to convert them to support state channels. 
 
-\subsection{Overview of Battleship Contracts}
+\subsection{Overview of Battleship}
 
-Battleship is a two-player game where each player has a list of ships and a 10x10 private board. 
+Battleship is a two-player game where each player has a list of ships that are placed on a 10x10 private board. 
 Each ship must be marked in a straight line either horizontally or vertically, and ships cannot be placed adjacent to each other.\footnote{Ships must be surrounded by water if there is available space on the board.}.
+To minimise long-term storage (and the associated significant gas cost), our contract only relies on a commitment to every player's ship and signed messages exchanged between both parties. 
 
 To set up the game, both parties participate in a cut-and-choose protocol.
-Each player commits to a list of $N$ boards (or $N$ lists of ships) using $\battleshipcommit$. 
-The counterparty selects one board (or list of ships) for the player using $\battleshipselectboard$.
-Once selected, each player reveals the remaining $N-1$ boards (or list of ships) to the counterparty. 
-If both parties are satisified that all revealed boards are well-formed, they can signal to begin the game using $\battleshipbegin$, otherwise they may chose to quit using $\battleshipgameover$. 
-
+Each player commits to $N$ lists of ships using $\battleshipcommit$. 
+The counterparty selects one list of ships for the player using $\battleshipselectboard$.
+Once selected, each player reveals the remaining $N-1$ list of ships to the counterparty. 
+If both parties are satisified that all revealed ships are well-formed, they can signal to begin the game using $\battleshipbegin$, otherwise they may chose to quit using $\battleshipgameover$. 
 %In the first contract, each player commits to $N$ boards using $\battleshipcommit$, whereas in the second contract each player simply commits to $N$ lists of ships. 
 %Next, the counterparty selects a single board (or a single list of ships) using $\battleshipselectboard$. 
 %Then, each player reveals all non-selected boards and list of ships to counterparty and this provides them an opportunity to verify all boards (and list of ships) are well-formed. 
@@ -305,124 +309,69 @@ If both parties are satisified that all revealed boards are well-formed, they ca
 In each turn, the player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must open the slot  within a fixed challenge time period. 
 To open, the counterparty reveals if the slot is occupied by water or a ship piece using $\battleshiprevealslot$.
 If this shot sinks a full ship, then the counterparty must instead reveal the full ship alongside the slot's opening using $\battleshipsinking$. 
-The slot's opening (and if a ship was sunk) is recorded in the contract. 
 Of course, the player is provided another turn if their shot was successful.
-Throughout the game, the loser may have an opportunity submit a proof of fraud using $\battleshipfraud$ if it is detectable the counterparty's board (or list of ships) is invalid. 
+%Throughout the game, the loser may have an opportunity submit a proof of fraud using $\battleshipfraud$ if it is detectable the counterparty's board (or list of ships) is invalid. 
 
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
-The loser has a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$, otherwise either player calls $\battleshipgameover$ to finish the game. 
+The loser has a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$, otherwise either player can call $\battleshipgameover$ after this fixed time period to finish the game. 
 
+\subsection{Battleship Contract} 
 
-\subsection{Setting up battleship game} 
+We present each phase of the game, how to establish the contract, the cut-and-choose protocol to begin the game, the turn-based gameplay and finally how the loser is provided an opportunity to prove the winner cheated and thus should not be sent the winnings. 
 
-We present the game phases, the data structures to represent board and list of ships, and how to register each player. 
-Both contracts  $\mathsf{BattleshipCon1}$ and $\mathsf{BattleshipCon2}$ have the same game life-cycle and game mechanics.
-However as we present afterwards, the former relies on a commitment to the entire board and every ship, whereas the latter only relies on a commitment to every ship. 
+\paragraph{Game Phases} There are six phases $\gamesetup, \gameattack, \gamereveal,  \gamewinner, \gamefraud, \\ \gamefinished$. 
+The $\gamesetup$ phase is responsible for ensuring both players select a single list of ships before agreeing to begin the game. 
+Game play transitions between $\gameattack$ and $\gamereveal$ as both players take a turn at shooting the counterparty's ships. 
+The game transitions to $\gamewinner$ when one player wins the game and it will transition to $\gamefraud$ once the winner has opened all ship locations.
+This provides the loser a fixed time period to submit a proof of fraud that the winner's board is not well-formed or that the winner did not honestly reveal a slot during the game. 
+Otherwise, the contract transitions to $\gamefinished$ that allows the winner to claim their winnings and reset the contract. 
+% to open  to declare a slot, otherwise the contract transitions to $\gamefinished$. 
+%Of course, the contract transitions to $\gamefraud$ if a proof of fraud to detect cheating by the counterparty is provided and we explore this phase further in Section \ref{sec:fraud}. 
 
-
-\paragraph{Game Phases} There are six phases $\{\gamesetup, \gameattack, \gamereveal,  \gamewinner, \gamefraud, \\ \gamefinished\}$. 
-The contract is established  with an initial deposit from both players and the challenge timer which dicates the length of time each player has to respond. 
-The $\gamesetup$ phase is responsibe for selecting a single board and/or a list of ships for each player before the game begins.
-Game play involves several transitions between $\gameattack$ and $\gamereveal$ as both players take a turn at shooting the counterparty's ships. 
-The game transitions to $\gamewinner$ when one player wins the game. 
-This requires the winner to reveal their board and the corresponding list of ships. 
-The loser is provided with a fixed time period to submit a proof of fraud that the winner's board is not well-formed, otherwise the contract transitions to $\gamefinished$. 
-Of course, the contract transitions to $\gamefraud$ if a proof of fraud to detect cheating by the counterparty is provided and we explore this phase further in Section \ref{sec:fraud}. 
-
-\paragraph{Representing the board and ships} 
-%All slot and ship locations include a unique nonce $r$. 
-A board is a 10x10 grid and each slot is represented as $\hslot_{i,j} := \hash(b, r, \mathsf{round}, \participant, \appcontract)$, where $i,j$ is the slot position, $b$ indicates if it is marked as a ship location.
-Each ship is the tuple $(k,\hship)$, where $k$ is the ship's length and $\hship := \hash(i,j,i\pm,j\pm,r, \mathsf{round}, \participant, \appcontract)$.
-%Each player has a list of ships $(k,\hship),...,(k',\hship')$ and the full board eis represented:
-
-%\begin{center}
-%$\hboard := \hash(\hslot_{0,0},...,\hslot_{10,10},(k_{1},\hship_{1}),..,(k_{n},\hship_{n}), \mathsf{round}, \participant, \appcontract)$
-%\end{center}
-
-%Where the game $\mathsf{round}$ is a monotonic counter and $\participant$ is this party's address. 
-
-\paragraph{Game setup and registration} 
+\paragraph{Contract establishment} 
 The contract is established with the address of both players $\participant_{1},\participant_{2}$ and the challenge timer $\timerchallenge$. 
-Both parties can deposit coins during $\gamesetup$ phase before placing their bets. 
-
-%\paragraph{TODO: Each player can have a clock} - to force an upper bound on game length. i.e. 500 blocks to finish the game issue = congestion can mess up game. 
-
-\subsection{BattleshipCon1: Board and  a list of ships } 
-
-This contract relies on $\hboard$ which includes a commitment to every slot in the grid and a list of ships. 
-%As we discuss later in Section x, this allows both players to detect and prove if the counterparty is cheating.  
-We present how each player selects one board for the game, the turn-based game play and finally how the loser is provided an opportunity to validate the winner's board before the winnings are sent. 
-
-\paragraph{Prepare battleship board} Both parties participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$. 
-Each party computes and individually signs $N$ boards: 
-
-\begin{center}
-	$\sigma^{board}_{\participant} := \sign_{\participant}(\hslot_{0,0},...,\hslot_{10,10},(k_{1},\hship_{1}),..,(k_{n},\hship_{n}), \mathsf{round}, \participant, \appcontract)$
-\end{center}
-
-All signed boards are sent to the counterparty who selects one board and reserves it for the game by submitting the signed board using $\battleshipselectboard$. 
-After selecting a board, the party opens the remaining $N-1$ boards to the counterparty who checks the validity of each board. 
-If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ which is as an explicit acknowledgement that the party has reviewed the remaining boards from the counterparty.
-If the counter-party does not reveal any boards (or if they are invalid), then the party can signal their desire to quit  using $\battleshipgameover$.\footnote{The counter-party can be forced to reveal every board on-chain to test its validity and potentially forfeit their deposit, but this is prohibitively expensive for $N-1$ boards.}
-Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
-
-\paragraph{Game-play} \label{sec:gameplay}
-%The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player has a turn at shooting the counterparty's ships. 
-
-In the $\gameattack$ phase, the player challenges the counterparty to reveal a slot $i,j$ using $\battleshipattackslot$.
-This transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$.
-If the counterparty's ship is not sunk, then they submit $(b,r)$ to open $\hslot_{i,j}$ using $\battleshiprevealslot$. 
-Otherwise if this shot sinks a ship, then the counter-party submits $(b,r)$ to open $\hslot_{i,j}$ and $(i,j)(i\pm,j\pm,r)$ to open $\hship$ using $\battleshipsinking$. 
-The contract $\appcontract$ stores the slot opening, the ship opening and marks the ship as sunk. 
-The game transitions to $\gamefraud$ if either player exceeds the maximum number of possible moves or it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
-
-\paragraph{End of game} 
-
-The winner must first open the remaining ships using $\battleshiprevealships$ and the contract verifies if all slots for any of the remaining ships have been revealed (i.e. the winner has not declared them as sunk). 
-Afterwards, the winner opens the remaining slots of their board using $\battleshiprevealboard$. 
-No further validation is performed by the contract and a fixed time period is enforced to permit time for the loser to submit a proof of fraud using $\battleshipfraud$.
-After this time period, the winner can redeem their reward using $\battleshipgameover$ which also transitions the game phase to $\gamefinished$. 
-
-\subsection{BattleshipCon2: List of ships } 
-
-This contract only relies on ship commitments  $\hship_{1},...,\hship_{n}$. 
-%As we discuss in Section x, this reduces the storage requirements to play the game, but increases the difficulty for players to detect fraud during the game. 
-We present how each player selects one list of ships, the turn-based game play and finally how the loser is provided an opportunity to validate the winner's list of ships before the winngs are sent. 
+Both parties can deposit coins during $\gamesetup$ phase before placing their bets.
 
 \paragraph{Prepare list of ships} Both parties participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$. 
-Each party computes  and signs $N$ list of ships: 
+Each ship is the tuple $(k,\hship)$, where $k$ is the ship's length and $\hship := \hash(i,j,i\pm,j\pm,r, \mathsf{round}, \participant, \appcontract)$.
+Each party computes and signs $N$ list of ships: 
 
 \begin{center}
  $\Sigma_{1}^{N} := \sign_{\participant}(((k_{i,1},\hship_{i,1}),...,(k_{i,n},\hship_{i,n})), \participant, \mathsf{round}, \appcontract)$ 
 \end{center}
  
-This is sent to the counterparty who is responsible for selecting one list and reserving it for the game by submitting the list of ships (alongside the corresponding signature) using $\battleshipselectboard$. 
-The party must reveal the remaining $N-1$ list of ships which allows the counterparty to check their validity. 
-If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ which is an explicit acknowledgement that each party has reviewed all revealed ships.
-If the counter-party does not reveal any ships, then the party can signal their desire to quit  using $\battleshipgameover$.
+This is sent to the counterparty who is responsible for selecting one list and reserving it for the game by submitting it alongside the corresponding signature using $\battleshipselectboard$. 
+The party must open the remaining $N-1$ list of ships to the counterparty which provides an opportunity to check their validity. 
+If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ which is an explicit acknowledgement that each party has reviewed all opened list of ships.
+If the counter-party does not open any ship lists, then the party can signal their desire to quit  using $\battleshipgameover$.
 Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
 
 \paragraph{Game-play} \label{sec:gameplayships}
 %The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player has a turn at shooting the counterparty's ships. 
-
-In the $\gameattack$ phase, the player challenges the counterparty to reveal a slot $i,j$ using $\battleshipattackslot$.
-This transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
-In this contract, there is no commitment to a slot in the grid $\hslot_{i,j}$.
-Instead the counterparty signs one of two messages depending on whether a ship was sunk:
+The contract maintains a counter $\mathsf{move}$ which increments after each player has taken their turn. 
+In the $\gameattack$ phase, the player challenges the counterparty to open a slot $i,j$ by signing: 
 
 \begin{center}
-	$\sigma^{shot}_{\participant} := \sign_{\participant}(i,j,b,\participant,\mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r,\hship,\participant,\mathsf{round},\appcontract)$
+	$\sigma^{shot}_{\participant} := \sign_{\participant}(i,j, \mathsf{move}, \mathsf{round},\appcontract)$ \\
 \end{center}
 
-The first signed message identifies if the slot is marked with water or a ship location, and it is submitted using $\battleshiprevealslot$.
-Whereas the second signed message declares a ship was sunk by opening a ship commitment, and it is submitted using $\battleshipsinking$. 
-The counterparty is responsible for submitting the signed message and the contract only stores a ship opening. 
-Each party must keep a copy of every signed message \footnote{Every signed message is submitted to the contract and thus can be fetched from the counterparty's transaction.} as this can later be used as a proof of fraud as discussed in Section \ref{sec:fraud}.
-The game transitions to $\gamefraud$ if the either player exceeds the maximum number of possible moves or it transitions to $\gamewinner$ if one player has declared all their ships sunk. 
+This message is submitted using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
+The counterparty signs one of two messages depending on whether a ship was sunk:
+
+\begin{center}
+	$\sigma^{hit}_{\participant} := \sign_{\participant}(i,j,b,\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r,\hship,\mathsf{move}, \mathsf{round},\appcontract)$
+\end{center}
+
+The counterparty is responsible for submitting either signed message. 
+The first message states if the slot is marked with water $b=0$ or a ship location $b=1$.
+It is submitted using $\battleshiprevealslot$.
+The second message declares the shot sank a ship and requires the counterparty to open the corresponding ship commitment $\hship$ to $\battleshipsinking$. 
+Each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} as this can later be used as a proof of fraud as discussed in Section \ref{sec:fraud}.
+The game transitions to $\gamewinner$ if one player has declared all their ships sunk. 
 
 \paragraph{End of game} 
 
-The winner opens all ships using $\battleshiprevealships$ and the contract does not validate the ships. 
+The winner opens the remaining ship commitments using $\battleshiprevealships$.
 A fixed time period is enforced to permit time for the loser to submit a proof of fraud using $\battleshipfraud$.
 After this time period, the winner can redeem their reward using $\battleshipgameover$ which also transitions the game phase to $\gamefinished$. 
 %,(i,j)$  
@@ -432,106 +381,62 @@ After this time period, the winner can redeem their reward using $\battleshipgam
 
 \subsection{Proof of Fraud} \label{sec:fraud}
 
-Both contracts rely on players submitting a proof of fraud if an invalid board, list of ships or move is publicly detected. 
-This is necessary as validating the board or list of ships is a computationally expensive searching problem. 
-%We highlight that the contract cannot process the opening of a slot or ship if the input values are not correctly formatted (i.e. the pre-image of a hash must be in a particular order). 
-%Thus, a cheating player can never win the game if an opening is not well-formed. 
-We present five fraud proofs that can be submitted if either player attempts to cheat.
-%In the following, we highlight how all data within a commitment must be well-formed to win the game before presenting four proof of frauds which focus on the information stored within a commitment and can be used if either player attempts to cheat.  
-%The game relies on each player submitting a proof of fraud using $\battleshipfraud$ if an invalid board (or list of ships) is publicly detected.%
-%This is necessary as validating the board (and the list of ships) is a computationally expensive searching problem.\footnote{TODO: Can we get some evidence? or at least some intuition how long it takes? https://stackoverflow.com/questions/7501344/how-to-validate-battleship-field }  
-%In the following, we highlight all committed data must be well-formed in order to win the game and thus we present four fraud proofs which focus on the revealed data's integrity. 
 
-% our fraud proofs focus on the integrity of the committed data.  the committed data must be correctly formatted in order to win the game before presenting four fraud proofs which will convince $\appcontract$ that can be submitted to the contract which demonstrate that the revealed board or its corresponding list of ships are not well-formed. 
+The contract can self-enforce the game's integrity and verify if the counterparty has cheated during the game.
+However fully validating the entire game requires significant computational resources and if this were performed within the contract then it would incur unreasonable transaction fees. 
+Therefore the contract also relies on the loser checking for fraud and submitting proof if the counterparty has cheated. 
+If the proof is submitted during the game, then the prover is set as the winner and the contract transitions to $\gamefraud$ which provides time to ensure both players have not cheated. 
+If the proof is submitted by the loser during $\gamewinner$, then the contract transitions to $\gamefinished$ and the loser is sent the winnings.
+In the following we highlight the fraud proofs that can be verified by the contract. 
 
-%\paragraph{Slots or ship locations are not formatted correctly} 
 
-%As a result, our fraud proofs focus on information stored within a correctly formatted pre-image of a hash and proves if the game logic was violated.
-%For example, the list of positions within a $\hshiplocation$ must correspond to a marked location on the board. 
+\paragraph{Exceeded maximum number of moves} 
+The contract maintains a counter $\mathsf{move}$ to keep track of the shots taken by both players. 
+If $\mathsf{move}$ exceeds the number of cells available on the board, then the contract can confirm that both players have cheated.
+This is the case as an honest player will have declared all their ships as sunk after every cell on their board has been opened.
+Thus the game should have transitioned to $\gamewinner$ before it exceeds $\mathsf{move}$ and instead it will transition to $\gamefinished$ with no player set as the winner. 
 
-\paragraph{Ships are not placed on the board}
-This fraud proof proves a ship location $(i,j)$ for an opened $\hship$ is not reflected as a ship location within the corresponding slot $i,j$.
-Of course, both contracts initially check if the claimed slot $i,j$ is within the permitted range $0,0...,10,10$. 
+\paragraph{Valid slot} 
+The contract checks if the slot $i,j$ is within the permitted range $0,0,...,10,10$ for any signed message received. 
 
-In $\mathsf{BattleshipCon1}$, the contract stores every slot and ship opening. 
-Any player can submit the ship identifier $\hship$ and the disputed slot location $i,j$.
-The contract verifies if $i,j$ was marked as a ship location and if the opening of $\hship$ claims to be at $i,j$. 
+\paragraph{Player has shot the same slot twice} 
+The contract does not store the opening of slots and thus it cannot independently verify if a player has shot the same slot twice.
+The player must sign every slot opening and the counterparty can provide the contract with two signed messages $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the slot $i,j$. 
+The contract verifies the player signed both openings, that the openings are for the same slot, and $\mathsf{move}\neq\mathsf{move}'$. 
+This proof of fraud can be submitted to the contract at any point during the game. 
 
-In $\mathsf{BattleshipCon2}$, the contract only stores the ship opening and the player is required to store every signed slot opening. 
-One player submits the ship idenfitier $\hship$, the disputed slot location $i,j$ and the signed opening of the slot $\sigma^{shot}_{\participant}$. 
-The contract verifies if this slot opening was signed by the counterparty,  $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
+\paragraph{Counterparty was dishonest about a slot opening}
+The counterparty has marked a slot $(i,j)$ as water, but an opened $\hship$ states it is a ship location. 
+%As previously mentioned, the contract only stores ship openings and the player is required to store every signed slot opening. 
+To prove fraud, the player submits the ship idenfitier $\hship$, the disputed slot location $i,j$ and the signed opening of the slot $\sigma^{hit}_{\participant}$. 
+The contract can verify if this slot opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
+On the other hand, the counterparty may also mark a slot as a ship location,  but no ships are at that location.
+This proof of fraud is similar as the player submits the disputed slot location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$.
+The contract is satisified if it cannot find a ship that claims to be at that location. 
 
-\paragraph{Erroneously marked  slot as a ship location} 
-This fraud proof proves a slot was marked as a ship location, but none of the opened ships claim to be at that location.
-All ships must be opened before this fraud proof can be used. 
+%\paragraph{Adjacent ships} 
+%This fraud proof proves that a ship is not surrounded by water and instead two ships are adjacent to each other (or claim to be at the same location on the board). 
+%We only require the ship commitments $\hship_{1},\hship_{2}$ to be opened and the same proof can be used in both contracts. 
+%Any party can submit the location $i,j$ for the first ship and $i',j'$ for the second ship.  
+%The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i'\pm1, j'\pm1$ or if they claim to be at the same location $i,j = i',j'$.
 
-In $\mathsf{BattleshipCon1}$, the contract stores every slot and ship opening. 
-One player submits the disputed location $i,j$ is submitted and the contract verifies if any ships claim to be at that location. 
-
-In $\mathsf{BattleshipCon2}$, the contract stores every ship opening.
-One player submits the disputed slot location $i,j$ alongside its signed opening $\sigma^{shot}_{\participant}$. 
-Again, the contract verifies the signed opening before verifying if any slots claim to be at that location. 
-
-Furthermore, the counter may keep track of the number of successful shots by incrementing a counter $\mathsf{hit}_{\participant}$. 
-If there are more successful hits than expected ship locations on the board, then the contract can automatically detect fraud. 
-
-\paragraph{Adjacent ships} 
-This fraud proof proves that a ship is not surrounded by water and instead two ships are adjacent to each other (or claim to be at the same location on the board). 
-We only require the ship commitments $\hship_{1},\hship_{2}$ to be opened and the same proof can be used in both contracts. 
-Any party can submit the location $i,j$ for the first ship and $i',j'$ for the second ship.  
-The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i'\pm1, j'\pm1$ or if they claim to be at the same location $i,j = i',j'$.
-
-\paragraph{Ships not placed horizontally or vertically} 
-This fraud proof proves that a ship is not placed on the board horizontally or verifically.
-As well, it proves the ship is not placed in a straight line. 
-The disputed ship must be opened before this fraud proof can be used and it is the same for both contracts.
+\paragraph{A ship was not placed  horizontally or vertically}
+When a party opens their ship the contract can check whether it was placed on the board horizontally or vertically. 
 The contract verifies that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
 
 \paragraph{Ship was not declared as sunk}
-This fraud proof proves the counterparty did not declare a ship as sunk which can effectively waste the player's next turn. 
-The proof requires a line of slot openings marked as ship locations and optionally  up to two additional slots marked as water before/after this line. 
-It also requires the counterparty not to have declared the ship as sunk while opening the corresponding. 
+The counterparty was dishonest and did not declare a ship as sunk. 
+This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
+All signed slot openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ can be submitted. 
+The contract verifies that every ship location was opened which implies the counterparty did not declare the ship as sunk (i.e. the final opening of a ship location should be $\sigma^{sunk}_{\participant}$). 
 
-In $\mathsf{BattleshipCon1}$, this proof of fraud can be provided during the game. 
-As well, the contract automatically checks for this fraud when the winner opens their remaining unsunk ships using $\battleshiprevealships$. 
-
-For proving fraud during the game, if the cut-and-choose protocol was successful, then the counterparty's board is well-formed and every slot opening reveals whether it is marked with water or a ship location. 
-Furthermore, the contract stores every slot opening and the ship must be opened at the time of its sinking. 
-Thus, one party can potentially prove fraud during the game by submitting the ship locations $(i,j),(i\pm,j\pm)$, and one/two additional water locations $(i',j'),(i'',j'')$ which are directly before and/or after the ship locations. 
-The contract verifies each slot is marked as a ship location, and the first/ last ship locations are surrounded by water. 
-Next, it checks for any opened ships so far which claim to be at the location $(i,j),(i\pm,j\pm)$. 
-Of course, if an opened ship cannot be found, then fraud is proven.
-
-In $\mathsf{BattleshipCon2}$, there is no commitment to any slot on the board and thus there is no guarantee the counterparty will honestly reveal the true opening of a slot. 
-However the counterparty is required to provide the party with a signed opening of every slot $\sigma^{shot}_{\participant}$ or $\sigma^{ship}_{\participant}$ if a ship is sank. 
-In the event the counterparty does not declare a ship sunk, then the player has a signed slot opening for every ship location. 
-All signed slot openings $\sigma^{shot}_{\participant,1},...,\sigma^{shot}_{\participant,k}$ and the ship identifier $\hship$ can be submitted during the phase $\gamewinner$ after all ship commitments are opened.
-The contract verifies that every ship location for $\hship$ was indeed opened and the counterparty did not declare it as sunk. 
-
-%At the time of reveal, the counterparty must also specift whether this shot has sunk the ship which updates the slot as  sinking tile. 
-
-% $\hslot$  in the contract is marked as hit if a ship was hit, but not declared as sunk, then the contract the counterparty signs a reveal message 
-%$\sign_{\participant}(b, r, i, j, \instantiatedno, \appcontract)$.
-
-
-%Assuming all signed messages are stored by the non-cheating player, then there are two cases when they can be used.
-%In the first case, the player can finish the game early if their shots reveals two slots which are marked as water before and after a ship which has not been declared as sunk.
-%The player can provide $\battleshipnotsunk$ with the list of signed reveal messages from the counterparty which indicates the ship was not sunk and the two additional slots marked as water. 
-%The contract can simply verify the two slots are indeed before and after the ship, and that the counterparty did not declare their ship as sunk after all successful shots.
-%In the second case, the additional two slots are not required when $\gamestatus := \gamewinner$ as the full board (and list of ships) are revealed. 
-%The player can simply provide the list of signed reveal messages from the counterparty and identify which ship was sunk. 
-%The contract can verify the counterparty did not declare the ship as sunk, but the ship was indeed fully hit. 
-
-%partially revealed board demonstrates 
-%Crucially, this fraud proof is also valid in $\gamestatus := \gamewinner$ after the winner's board is revealed. 
-
-%Attack: In reality, after hitting a bit of the ship - it could have sunk. The counterparty can lie and say the ship was not sunk - just to waste players move. 
-%Fraud proof: Player can send all signed messages (i.e. bit reveals) - and if none of the messages %say "SUNK" (along all bits were hit!) - then it is evidence the counterparty cheated. This becomes obvious after the player has wasted 1-2 moves (i.e. hit A1,A2,A3,A4, but A1 and A3 are water!) 
-
+\paragraph{Challenge period has expired }
+The contract relies on a global clock (i.e. block timestamp or block height) to set a fixed time period $\timerchallenge$ for a player to perform an action (i.e. take a shot, open a slot, open all ships, etc). 
+If a player does not respond within this time period, then the counterparty can notify the contract to check if the challenge period has expired. 
 
 \subsection{Modifying battleships to support state channels}
 
-We modify both battleship contracts before deployment to support state channels. 
+We modify the battleship contractsbefore deployment to support a state channel.
 This requires explicitly stating the list of participants $\participant$ and the dispute timer $\timerdispute$ for use in the state channel.  
 A new flag $\instantiated$ is set as $\instantiated := \instantiatedno$  and the pre-condition $\textsf{discard if } \instantiated  = \instantiatedyes$ is included in every function $\battleshipbegin, \battleshipgameover, \battleshipattackslot, \battleshiprevealslot, \battleshipsinking, \\ \battleshipfraud, \battleshiprevealboard$ and $\battleshiprevealships$. 
 If the pre-condition is satisified, then the function is considered locked and the transaction automatically fails (i.e. an exception is thrown and all computation is reverted). 
@@ -584,8 +489,35 @@ This also raises the problem of splitting transaction fees. In a 2 party channel
 \paragraph{Attacks we cant solve} Griefing - every time we ask counterparty to reveal commitment - there has to be a fixed time period to do it - similar to real life - there is nothing we can do about it - and due to latency on the network - the game could be dragged out for hours. This provides a benefit to use something like Plasma - where the block latency can be super quick (and thus the counterparty has 5 minutes to reply, and not 1 hour). State channel cant get around this -by definition we always hit the worst case. 
 
 
+\paragraph{ReplayAttacks} Signed tx for private network should not be valid for real network? Otherwise waste gas! 
  
 \appendix
+
+\section{Commitment to entire board}
+
+\paragraph{Representing the board}
+
+A cell is represented as $\hslot = H(b, r)$, where  $r$ is a unique nonce and $b$ marks the location as water/ship. 
+Each cell is a leaf in a merkle tree and the root is stored in the contract. 
+
+\paragraph{Opening a slot} 
+
+During the game, the counterparty must open the cell $b,r$ alongside a merkle tree branch to prove that this cell is included in the board. 
+
+\paragraph{Keeping track of hits} The contract can maintain a bit string, and flip a bit every time a specific cell is hit. This can prevent a player hitting the same slot twice. A second bit string can be used to indicate if a slot was marked as "water" or "hit". i.e. look up to see if cell was hit, and then check if it was 0/1 (i.e. water/ship location). 
+
+\paragraph{Benefits and Problems} Prevents players lying during the game (assuming the board is well-formed due to probablistic check). However - it requires a merkle tree verification every move which can be expensive over-time. Also need to self-enforce that the cells and the ship locations match - so all should be revealed at the end of this game - that is a lot of information to send. (i.e. 100 random nonces, 100 b values, etc). 
+
+
+\section{Extension to Battleship Contract}
+
+To avoid the issue of allowing a player to "dos" by lying during the game - we can require the party to commit to every slot on the board. 
+
+root + 7 hashes + 2 + opening. something along those lines. 
+
+(could be merkle tree or just store every slot explicitly) - point is that proof of openin is required. can no longer lie about slot opening, but is it worth the overhead? 
+
+- This prevents loser wasting turns - if they know they are going to lose, theyll simply not reveal their slots correctly and make the winner take up all their turns. 
 
 \section{Security Analysis for Battleship Game}
 
