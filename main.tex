@@ -30,7 +30,6 @@
 \newcommand{\instantiatedno}{\mathsf{NO}}
 \newcommand{\instantiatedyes}{\mathsf{YES}}
 
-
 \newcommand{\gamestatus}{\mathsf{phase}}
 \newcommand{\gameregister}{\mathsf{INIT}}
 \newcommand{\gamesetup}{\mathsf{SETUP}}
@@ -105,6 +104,7 @@
 
 \newcommand{\timerchallenge}{\mathsf{\Delta}_{\mathsf{challenge}}}
 \newcommand{\timechallenge}{\mathsf{t}_{\mathsf{challenge}}}
+\newcommand{\timerextra}{\mathsf{\Delta}_{\mathsf{extra}}}
 \newcommand{\timerdispute}{\mathsf{\Delta}_{\mathsf{dispute}}}
 \newcommand{\timenow}{\mathsf{t}_{\mathsf{now}}}
 \newcommand{\timestart}{\mathsf{t}_{\mathsf{start}}}
@@ -143,6 +143,8 @@ We propose a new state channel construction that combines the dispute process mo
 
 \end{itemize}
 \section{Background}
+
+In this section, we provide background information about Ethereum, smart contracts and how the concept of a channel has evolved. 
 
 \subsection{Ethereum and smart contracts}
 
@@ -421,40 +423,77 @@ The contract is satisified if it cannot find a ship that claims to be at that lo
 %The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i'\pm1, j'\pm1$ or if they claim to be at the same location $i,j = i',j'$.
 
 \paragraph{A ship was not placed  horizontally or vertically}
-When a party opens their ship the contract can check whether it was placed on the board horizontally or vertically. 
-The contract verifies that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
+The contract can check whether an opened ship was placed on the board horizontally or vertically. 
+To verify, it checks that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
+Finally it also checks the ship's length which is pre-determined by the contract
+
+\paragraph{Two ships claim to be at  the same cell} 
+This proof is applicable after both ships are opened and stored in the contract. 
+The index for both ships and the slot $i,j$ is sent to the contract.
+This allows the contract to look up the co-ordinates for each ship and check if it claims to be at location $i,j$. 
 
 \paragraph{Ship was not declared as sunk}
 The counterparty was dishonest and did not declare a ship as sunk. 
 This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
-All signed slot openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ can be submitted. 
-The contract verifies that every ship location was opened which implies the counterparty did not declare the ship as sunk (i.e. the final opening of a ship location should be $\sigma^{sunk}_{\participant}$). 
+All signed slot openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ must be submitted to the contract.
+This allows the contract to verify that every ship location was opened which implies the counterparty did not declare the ship as sunk (i.e. the final opening of a ship location should be $\sigma^{sunk}_{\participant}$). 
 
 \paragraph{Challenge period has expired }
 The contract relies on a global clock (i.e. block timestamp or block height) to set a fixed time period $\timerchallenge$ for a player to perform an action (i.e. take a shot, open a slot, open all ships, etc). 
 If a player does not respond within this time period, then the counterparty can notify the contract to check if the challenge period has expired. 
 
-\subsection{Modifying battleships to support state channels}
+\subsection{Modifications for a State Channel}
 
-We modify the battleship contractsbefore deployment to support a state channel.
-This requires explicitly stating the list of participants $\participant$ and the dispute timer $\timerdispute$ for use in the state channel.  
-A new flag $\instantiated$ is set as $\instantiated := \instantiatedno$  and the pre-condition $\textsf{discard if } \instantiated  = \instantiatedyes$ is included in every function $\battleshipbegin, \battleshipgameover, \battleshipattackslot, \battleshiprevealslot, \battleshipsinking, \\ \battleshipfraud, \battleshiprevealboard$ and $\battleshiprevealships$. 
-If the pre-condition is satisified, then the function is considered locked and the transaction automatically fails (i.e. an exception is thrown and all computation is reverted). 
+In the following, we present how to modify the battleship contract before deployment in order to support state channels.
+This includes storing information about the state channel, a new pre-condition which must be attached to every function in the battleship game, how to lock/unlock the game into a state channel and finally a new off-chain contract for verifying every state transition in the channel. 
 
-The lock function $\applock$ requires a signature from every party to authorise creating the state channel. 
-This increments a counter $k$ which tracks the number of times a state channel is turned on, the contract sets $\instantiated := \instantiatedyes$ to signal creating the state channel contract with $\participant$,$\timerdispute$ and finally the state channel's contract address is stored  $\statechannel$. 
-On the other hand, the unlock function $\appunlock$ requires the dispute process to be complete in the state channel contract. 
-Any party can submit the current state of the battleship game $\stateinfo$ (alongside the blinding nonce $r$) to $\appcontract$ and this is stored if it corresponds to the state hash $\hstate$ in the state channel contract. 
-If successful, the flag $\instantiated$ is set as $\instantiatedno$ and all functionality is re-enabled in the battleship game. 
+\paragraph{Applying the application template}
+As mentioned in Section \ref{sec:template}, $\instantiated$ is set to $\instantiatedno$ and the dispute timer $\timerdispute$ is stored when the battleship contract is created. 
+Both players $\participant_{1},\participant_{2}$ must be set to be used for the state channel if it is instantiated. 
+A new pre-condition $\textbf{discard if}$ $ \instantiated  = \instantiatedyes$ is included in every function\footnote{The functions includes $\battleshipbegin, \battleshipgameover, \battleshipattackslot, \battleshiprevealslot, \battleshipsinking, \\ \battleshipfraud, \battleshiprevealboard$ and $\battleshiprevealships$. } and the transaction fails\footnote{A failed transaction reverts all computation and thus does not modify the state of any contract.} if the pre-condition is satisified.
+This effectively disables all functionality within the application contract if it is locked and the state channel is turned on. 
 
+\paragraph{Lock and unlock functions} 
+The lock function $\applock$ requires a signature from both parties $\participant_{1},\participant_{2}$ to authorise creating the state channel.
+The battleship contract increments a counter $\mathsf{chan}_{\mathsf{ctr}}$ to track the number of times the state channel is turned on, it sets $\instantiated := \instantiatedyes$ to signal creating the state channel contract, it creates a new state channel contract with the list of participants $\participant_{1},\participant_{2}$ and the dispute timer $\timerdispute$, and finally it stores the new state channel contract's address $\statechannel$. 
 
-TODO: On the other hand, an off-chain version for either contract is required to allow the parties to execute the application amongst themselves. 
-This off-chain version should disable/remove any functionality which has a side-effect on the blockchain (i.e. interaction with another contract).
-In the case of the battleship contracts, only the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$ are disabled. 
+On the other hand, the unlock function $\appunlock$ requires the dispute process to be finished in the state channel contract. 
+Any party can submit the final game state $\stateinfo$ (alongside the blinding nonce $r$) to the battleship contract $\appcontract$. 
+The contract verifies if this game state corresponds to the final state hash that was accepted by the state channel contract using $H(\stateinfo,r)$ == $\statechannelgetcommitment$.
+If successful, the flag $\instantiated$ is set as $\instantiatedno$, the full game state is stored, and all functionality is re-enabled in the battleship game. 
 
-Simulate block height + absolute time.: Caution must be taken over timers too; i.e. if we rely on block height - this must be simulated in the off-chain environment. 
+\paragraph{Handling Challenge Timer}\label{sec:timers}
+The contract is no longer responsible for deciding or self-enforcing the time $\timechallenge$ on behalf of both parties and we have explored two approaches to overcome this issue. 
+The time $\timechallenge$ can be set by the player proposing a new state and the counterparty must verify the proposed time is within a small range (i.e. a few minutes, or $k$ blocks) before mutually authorising to the new state.
+This absolute time $\timechallenge$ must take into account the time it takes to turn off the channel via the dispute process which is includes the fixed dispute time period $\timerdispute$ and extra time to initiate/settle the dispute $\timerextra$. 
+On the other hand, a relative timer can be used such that $\timechallenge$ is not updated by the players within the state channel.
+Instead the time $\timechallenge$ is set by the contract once it is re-activated in the blockchain using $\appunlock$ and if the game is in a relevant phase. 
+
+\paragraph{Off-chain Contract} 
+We propose each player can deploy an \textit{off-chain} version of the battleship contract to a local blockchain to execute all state transitions for the game. 
+Any functions with operations which interact with other contracts or accounts on the blockchain (i.e. \textit{side-effects}) must be disabled in the off-chain version. 
+This is necessary as the state channel can only update the battleship contract and it is not guranteed that any side-effects will persist when the channel is closed. 
+In the case of our battleship contract, we must disable the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$ as they send/receive coins from other accounts/contracts. 
+To disable, both functions can simply be removed from the off-chain version of the contract. 
+
 
 \section{Experiment on Ethereum's Test Network}
+
+\paragraph{Experiment setup} 
+
+What computers did we use? Was a central server involved for co-ordination? What did we use to simulate contract execution? Did we use private/test/main net? 
+
+\paragraph{Gas cost of battleship game} 
+
+How much does it cost to run the full battleshop game on-chain? Without a state chanel? 
+
+\paragraph{Gas cost of modifications to support a state channel} 
+
+How much does it cost for the new state channel? How much does it cost to include the new functionality + variables? How much does it cost to submit and store a "full state" to the blockchain?  
+
+\paragraph{Verifying every new state off-chain} 
+
+Local instance of contract. Execute it, sign and exchange messages. What is the round trip overhead? What error range did we use for timers? (i.e. within 1-2 minutes). 
 
 \section{Discussion} 
 
@@ -473,10 +512,21 @@ This also raises the problem of splitting transaction fees. In a 2 party channel
 
 \paragraph{Chicke and egg problem} Does the app contract create state channel? Or should the state channel create the application? Related to funfair dilemma - one assumes contract is already on-chain, other assumes it is created off-chain. 
 
+\paragraph{Dealing with side-effects} 
+Only our withdraw/deposit functions have any side-effects. It is simple for us to simply delete these functions for the off-chain contract. However some applications may have functionality that relies on side-effects and cannot simply be disabled. So far, it looks like this functionality is not compatible with a state channel in a straight-forward manner. 
 
 \paragraph{Applications of state channels} All parties must remain on-line for the execution of a state channel. As a result, applications may be context-specific (i.e. quick auctions for buying/selling AdWords, but not for the Ethereum Name Service). 
 
-\paragraph{Application Timers} There is support for both absolute and relative timers. Relative timers are ideal as they allow the designer to avoid considering the dispute process time (i.e. it starts ticking once the application is re-activated). However, absolute time locks are sometimes necessary/unavoidable (i.e. HTLC transfers). 
+\paragraph{Application Timers} 
+%Our battleship game relies on an absolute timer to ensure each player makes a move within a fixed time period as $\timechallenge$ is set as $\timedispute$. 
+%If the game is executed via the blockchain, then the contract is responsible for computing a new $\timechallenge$ after each player's move.
+%This time can be tracked using the blockchain height or the timestamp recorded in every block.
+
+As we mentioned in Section \ref{sec:timers}, setting and tracking time becomes problematic within a state channel as the contract can no longer decide $\timechallenge$ on behalf of both parties.
+We proposed two approaches where each player updates the time when proposing a new state or the time can be updated after the application contract is re-activated on the blockchain (and the state channel is turned off).  
+For the first approach, we observe that it requires minimal modification as the timer $\timerchallenge$ is modified to be $\timerchallenge + \timerdispute + \timerextra$ when the state channel is created.
+However it also implies players must be cautious to close the channel with sufficient time to complete their move via the blockchain.
+On the other hand, while the second approach protects both parties from the time it takes to re-activative the contract, it requires the appplication to be aware that the state channel is turned off and accordingly set the time $\timechallenge$ if the game is in a particular state (i.e. attack). 
 
 \paragraph{Benefit to PISA} All applications rely on a single state channel contract. Thus, a custodian only has to verify the bytecode for a single contract and can accept jobs for any application. 
 
@@ -494,6 +544,9 @@ This also raises the problem of splitting transaction fees. In a 2 party channel
 \appendix
 
 \section{Commitment to entire board}
+
+One issue with our battleship game is that a player can lie about the opening of their slot. While they can never win the game by doing so; it does allow the player to require the counterparty to potentially shoot every slot on their board. One way to prevent this attack is to require the counterparty to commit to every slot on their board in advance of the game; and have it revealed throughout. The problem is that this requires a merkle tree verification per move or every hash (200) to be stored in the contract directly - thus increasing the game cost in the honest case. 
+
 
 \paragraph{Representing the board}
 
