@@ -540,8 +540,14 @@ Perun and Counterfactual aim to minimise on-chain state (i.e. a single multi-sig
 On the other hand, Funfair aims to maximimise on-chain state for a single application. 
 Both approaches have an underlying assumption about the likelihood that one party may trigger a dispute and the financial cost of resolving this dispute by sending the full state to the blockchain.
 We highlight that state channels introduce new economic attack vectors that must be considered when designing compatible applications.
-In fact, this dilemma can be summed up in a single question, i.e. \textit{does it make sense to resolve a dispute for a \$10 bet if it costs \$100 to submit the full state?} 
-Our empirical evaluation confirms that based on the current state of the Ethereum network, the Funfair approach appears more suitable as this reduces the impact of economic attacks to undermine the safety guarantee provided by state channels. 
+In fact, this dilemma can be summed up in a single question:
+
+\begin{center}
+\textit{Will a player turn off the channel for a \$10 bet if it costs \$100 to complete the dispute process, re-activate the contract and win the bet via the blockchain?} 
+\end{center} 
+
+To answer the above question, our empirical evaluation confirms that based on the current state of the Ethereum network, the Funfair is preferable as it minimises the cost of the dispute process. 
+This is crucial to reduce the impact of economic attacks to undermine the safety guarantee provided by state channels. We need experiment results to back this up with numbers. 
 
 \paragraph{Application timers} 
 As we mentioned in Section \ref{sec:timers}, there is no global clock available for setting time within a state channel as the contract no longer sets $\timechallenge$ on behalf of both parties.
