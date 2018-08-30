@@ -26,6 +26,9 @@
 \colorlet{entry}{NavyBlue}
 \colorlet{string}{BlueViolet}
 
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+
 \newcommand{\instantiated}{\mathsf{instantiated}}
 \newcommand{\instantiatedno}{\mathsf{NO}}
 \newcommand{\instantiatedyes}{\mathsf{YES}}
@@ -156,6 +159,17 @@ A smart contract is a state machine, where the state transition is executed on-c
 
 
 \subsection{Evolution of channel constructions}
+
+Nakamoto first proposed the concept of a channel that allows two parties to transact amongst themselves. The first trustless protocol was Spilman channels that supports two-party payments 
+
+\paragraph{Payment Channels in Bitcoin} 
+Spilman, Duplex, Lightning
+
+\paragraph{Payment Channels in Ethereum}
+Raiden, Sprites
+
+\paragraph{State Channels in Ethereum} 
+Sprites, L4, Perun, Pisa
 
 In Bitcoin - dispute process is to determine latest state and "close" the channel. Awkward to make this work - Lightning relies on revocation/penalty to enforce latest state is broadcast/accepted. 
 
@@ -510,10 +524,36 @@ Local instance of contract. Execute it, sign and exchange messages. What is the 
 
 \section{Discussion} 
 
-\paragraph{Probablistic checking board's integrity} Impacts the UX/fun of the game. i.e. you need to have a randomly allocated board, ruins the fun. Could have a zkSNARK to prove integrity of the board. In fact, due to the commit, reveal and then explicit acknowledgement to begin the game - the game does not need to verify the zkSNARK (or any of the N boards validity). We leave this as future work.  
+%\paragraph{Probablistic checking board's integrity} Impacts the UX/fun of the game. i.e. you need to have a randomly allocated board, ruins the fun. Could have a zkSNARK to prove integrity of the board. In fact, due to the commit, reveal and then explicit acknowledgement to begin the game - the game does not need to verify the zkSNARK (or any of the N boards validity). We leave this as future work.  
 
 
+\begin{table*}
+	\begin{center}
+		\begin{tabular}[]{l l c c c c c c c }
+			\hline 
+			& Parties& Bi-directional & No Expiry Time & Generic & Side-effects & Independent & Multi-App & Dispute\\
+			\hline 
+			Spilman & 2 & \xmark & \xmark & \xmark & \xmark & \xmark & \xmark& state \\ 
+			DMC & N & \cmark & half & \xmark & \xmark & \xmark & \xmark & state  \\ 
+			Lightning & 2 & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & state \\ 
+			Raiden & 2 & \cmark & \cmark & \xmark & \xmark & \xmark & \xmark & state\\ 
+			Perun & 2 & \cmark & \cmark & \cmark & \xmark & \xmark & \cmark & state \\ 
+			L4 & 2 & \cmark & \cmark & \cmark & \xmark & \xmark & \cmark & state \\ 
+			Sprites & N & \cmark & \cmark & \cmark & \cmark & \xmark & \xmark  & cmd \\ 
+			Pisa & N & \cmark & \cmark & \cmark & \cmark & \cmark & \xmark  & cmd \\ 
+			THIS & N & \cmark & \cmark & \cmark & \xmark & \cmark & \xmark  & state \\ 
+			\hline 
+		\end{tabular}
+	\end{center}
+	\caption{A comparison of the channel constructions. }
+	\label{table:comparison}
+\end{table*}
+
+
+\paragraph{Comparison of state channel constructions} 
+We present a comparison of all state channel constructions in Table \ref{table:comparison}. 
 \paragraph{Worst-case scenario for state channels} 
+
 One party can turn off the channel using the dispute process after all parties agree to execute the application off-chain.   
 This is problematic as all parties are now committed to executing the entire application via the blockchain.
 In the case of battleship, both parties commit to the battleship game using $\battleshipbegin$ and afterwards must play the entire turn-based game via the blockchain. 
@@ -566,12 +606,21 @@ Additionally,  the accountable third party is only required to verify the byteco
 The gameplay for battleship is turn-based and it is clear which player is responsible for proposing every new state. 
 Setting up the game using $\battleshipcommit$ or $\battleshipbegin$ has no order and both players can propose a state transition for the same monotonic counter $i$. 
 In this case, both players can use a deterministic rule to resolve the race condition (i.e. $\participant_{1}$ proposed state has priority) as the order of execution has no impact on the game's outcome. 
-This highlights that race conditions in the underlying application are also reflected in the state channel and the state channel may be turned off if the order of execution has an impact on the application's outcome.
+This highlights that race conditions in the underlying application are reflected in the state channel and can result in the state channel being turned off if the order of execution has an impact on the application's outcome. 
 
-\paragraph{Limitations due to EVM/Solidity} Cannot delete a mapping - problems if channel is created half-way thru and app; and you update values in the mapping! need to keep an array of all key-values... could try to store all state in a single contract, delete/recreate contract; but that is expensive (similar to the dispute registry).  
+\paragraph{Limitations due to the EVM} 
+The mapping data structure in Solidity for the Ethereum contract environment poses problems for the state channel as it is not feasible to simply delete all key-value pairs. 
+If a key-value pair is deleted within the state channel (i.e. the value is set to 0), then this over-write must also occur when the full state is sent to the contract. 
+Otherwise, there is a risk the deleted key-value pair will persists after the state channel is turned off.
+For example, if one party's balance is set to 0 coins in the state channel and this isn't reflected in the on-chain contract after turning off the channel, then the party can withdraw their more coins than they deserve from the contract. 
 
-
-\paragraph{Applications of state channels} All parties must remain on-line for the execution of a state channel. As a result, applications may be context-specific (i.e. quick auctions for buying/selling AdWords, but not for the Ethereum Name Service). 
+\paragraph{Applications of state channels} 
+A state channel requires all parties to remain on-line to authorise every new state of the application.
+This lack of fault tolerance implies that a state channel is only suitable for applications that involve a small set of parties. 
+We chose battleship for our experiment as the majority of companies who are pursing state channels at the time of writing have identified gaming as a killer-application and battleship is a good example of a game that would otherwise be unreasonable to execute without a state channel. 
+However our experiment demonstrates that state channels may not be compatible for games like battleship as each party runs the risk of performing a significant number of moves via the blockchain to finish the game. 
+Instead, state channels appear to be  useful for applications that require a small number of rounds and all parties will repeat the application's execution more than once. 
+Some applications in this direction include payments, casino games, boardroom elections and auctions.
 
 \appendix
 
