@@ -50,7 +50,7 @@
 
 \newcommand{\hready}{\mathsf{hready}}
 \newcommand{\hboard}{\mathsf{hboard}}
-\newcommand{\hslot}{\mathsf{hslot}}
+\newcommand{\hcell}{\mathsf{hcell}}
 \newcommand{\hship}{\mathsf{hship}}
 \newcommand{\hshiplocation}{\mathsf{hshiplocation}}
 
@@ -84,12 +84,12 @@
 
 \newcommand{\battleship}{\mathsf{BS}}
 \newcommand{\battleshipfraud}{\mathsf{BS.fraud}}
-\newcommand{\battleshipattackslot}{\mathsf{BS.attackslot}}
+\newcommand{\battleshipattackcell}{\mathsf{BS.attackcell}}
 \newcommand{\battleshipbegin}{\mathsf{BS.begingame}}
 \newcommand{\battleshipcommit}{\mathsf{BS.commit}}
 \newcommand{\battleshipplacebet}{\mathsf{BS.placebet}}
 \newcommand{\battleshipselectboard}{\mathsf{BS.select}}
-\newcommand{\battleshiprevealslot}{\mathsf{BS.openslot}}
+\newcommand{\battleshiprevealcell}{\mathsf{BS.opencell}}
 \newcommand{\battleshipsinking}{\mathsf{BS.sunk}}
 \newcommand{\battleshiprevealships}{\mathsf{BS.winnerships}}
 \newcommand{\battleshiprevealboard}{\mathsf{BS.winnerboard}}
@@ -99,6 +99,7 @@
 \newcommand{\battleshipfinish}{\mathsf{BS.finish}}
 
 %\newcommand{\battleshipshipnotplaced}{\mathsf{BS.fraudnothit}}
+\newcommand{\battleshipdeclarednotsunk}{\mathsf{BS.declarednotsunk}}
 \newcommand{\battleshipdeclarednothit}{\mathsf{BS.declarednothit}}
 \newcommand{\battleshipsamecell}{\mathsf{BS.attacksamecell}}
 \newcommand{\battleshiptwoships}{\mathsf{BS.celltwoships}}
@@ -145,6 +146,7 @@ We propose a new state channel construction that combines the dispute process mo
 3. how many companies exist to have deployed state channels / currently in the works. 
 
 
+A channel between a group of parties, and a mechanism to synchronise a route of payments based on a single payment/action. We only consider the former, and leave the latter (and its network) as future work. 
 
 \begin{itemize}
 \item A new dispute process that supports any application and ensures quick liveness of the application (i.e. sprites, every command dispute = slow, L4/Perun requires incorporating channel into app)
@@ -158,30 +160,69 @@ In this section, we provide background information about Ethereum, smart contrac
 
 \subsection{Ethereum and smart contracts}
 
+All users are responsible for generating their own pseudonymous account which is simply a public-private key pair. 
+If the account is associated with the network's native currency (i.e. ether), then the user can digitally sign transactions to send coins to other users or to interact with global programs called smart contracts. 
+There is an append-only public called the blockchain that is responsible for ordering transactions broadcast by users on the network and thus it also determines the order of execution for all transactions.
+A group of financially invested users called miners are responsible for updating the blockchain by competing to solve a computational puzzle in order to win the authority to append a new \textit{block of transactions} to the blockchain.
+The block that is in the \textit{longest and heaviest blockchain} is eventually considered the winner and in return the miner is rewarded with newly minted coins. 
+As well, Ethereum's blockchain protocol implements a variation of the GHOST protocol to partially reward blocks that were mined, but are not part of the longest and heaviest blockchain. 
 
-A smart contract is a state machine, where the state transition is executed on-chain based on an authorised command. 
-
+Conceptually, a smart contract is a trusted third party with public state. 
+It has a unique address on the network, it is instantiated based on the code supplied at the time of its creation, and all execution can be modelled as a state machine. 
+Every transaction executes a command in the smart contract and determines how to perform the state transition $\stateinfoplus = \mathsf{transition}(\stateinfoi, \mathsf{cmd})$. 
+Of course, it is considered a trusted third party as every peer on the network is responsible for replicating the execution of every transaction included in the blockchain to verify its correctness and all data stored by the smart contract is public due to the necessity to replicate its computation. 
 
 \subsection{Evolution of channel constructions}
 
-Nakamoto first proposed the concept of a channel that allows two parties to transact amongst themselves. The first trustless protocol was Spilman channels that supports two-party payments 
+%A channel 
+%After every state transition, each party should have a signature from every other party for the new state.
+A channel is a non-fault tolerant consensus protocol (i.e. $n$ out of $n$) that allows a group of parties to execute a smart contract amongst themselves without interacting with the network. 
+It requires all parties to execute every state transition and collectively authorise the new state of a smart contract.
+%The promise of a channel is that it allows parties to avoid transaction fees when executing a smart contract and also provide instant finality after all parties have exchanged signatures for a new state.  
+However, if a single party does not co-operate, then the underlying blockchain is used as a root of trust to guarantee the safety of coins for all online parties and to also guarantee liveness such that the smart contract's application always terminates. 
+We present the evolution of channel constructions which first emerged in Bitcoin for financial transactions, but has since been taken further to support the execution of arbitrary applications in Ethereum.
 
 \paragraph{Payment Channels in Bitcoin} 
-Spilman, Duplex, Lightning
+Spilman proposed relace by incentive which is the first state replacement technique for a channel and it is designed for one-way payments from a sender to receiver.
+The sender submits a deposit to open  channel and this deposit can be redeemed if one of the following two conditions are satisified. 
+Either the channel's expiry time is reached and the sender is refunded their coins, or both parties authorise the payment. 
+Every payment signed by the sender will increment the coins owed to the receiver and decrement the coins owed to the sender.  
+The receiver can close the channel by signing and publishing the payment that pays them the most coins. 
+To support bi-directional payments, Decker proposed replace by time lock which decrements the channel's expiry time once the payment direction changes.
+This guarantees the new receiver can publish their payment before any previous payments are eligible for the blockchain. 
+However both state replacement techniques require the channel to have an expiry time and restricts the total number of transactions that can occur. 
+Poon and Dryja proposed a third state replacement technique called replace by revocation for Lightning Channels.  
+It requires both parties to authorise each other's copy of the new state before sharing secrets to revoke the previously authorised state. 
+It also introduced the concept of a dispute process which lets one party publish a fully authorised state to close the channel and the blockchain provides time for the counterparty to prove the published state is invalid and penalise the broadcaster by claiming all coins in the channel.  
+After the dispute period has expired, both parties are sent their respective coins according to the final state accepted by the blockchain. 
+
 
 \paragraph{Payment Channels in Ethereum}
-Raiden, Sprites
+Raiden proposed the first payment channel construction for Ethereum which is effectively a pair of replace by incentive channels. 
+Every payment increments the total coins owed to the counterparty and closing the channel requires each party to publish the final payment received. 
+Afterwards the smart contract computes each party's balance using the offset from the total coins owed to both parties. 
+Unlike in Bitcoin, this construction has no expiry time and does not restrict the total number of payments within the channel, but it is still restricted to two parties and its state only considers the balance of both parties. 
+%If there is a dispute in the channel, then the blockchain accepts the state with the largest monotonic counter as the latest state. 
+%Both parties must increment a counter and sign every new state which is simply the balance of both parties. 
 
 \paragraph{State Channels in Ethereum} 
-Sprites, L4, Perun, Pisa
 
-In Bitcoin - dispute process is to determine latest state and "close" the channel. Awkward to make this work - Lightning relies on revocation/penalty to enforce latest state is broadcast/accepted. 
+Sprites also proposed a two-party payment channel, but it introduced a new state replacement technique called replace-by-counter to support $n$ party channels for any application.
+One party is responsible for proposing a command $\cmd$ and all parties must  compute the state transition $\stateinfoplus := \mathsf{transition}(\stateinfoi, \cmd)$ and sign the new state $\sigma_{\participant} := \sign_{\participant}(\stateinfoi, \monotoniccounter+1)$.
+The state is only considered final once each party has received a signature from every other party in the channel. 
+If one party does not co-operate, then any party can self-enforce the state transition via the blockchain using the dispute process. 
+One party submits to the on-chain contract a recent $\stateinfoi$ and a list of signatures to prove that all parties have authorised this state.
+Afterwards this party can trigger the dispute process and the on-chain contract provides a fixed time for all parties to submit a signed $\cmd$. 
+Once the dispute period has expired, the contract executes the submitted commands and transitions to the new state $\stateinfoplus$. 
+Any party can cancel this dispute and prevent the on-chain state transition by submitting another $\stateinfoplus$ which is associated with a larger counter alongside a list of signatures to prove it was authorised by all parties. 
+Pisa modified the state channel construction from Sprites such that a commitment to the new state $\hstatei$ is signed instead of $\stateinfoi$.
+This allows the state channel smart contract to be application-agnostic as it seperates the state channel construction from the application logic. 
 
-In Perun/L4 - the dispute process is to determine the latest state and "close" the channel. 
-
-In Sprites - dispute process is to process "commands" such as payments / withdrawals. Useful for single-purpose commands, not great for continuous applications (i.e. gaming) due to dispute process per command.
-
-In Pisa - dispute process extends Sprites, but adds privacy-preserving feature - this allows state channel contract to be independent of the application. 
+While Perun and Counterfactual are designed for two parties, both have extended the concept of a state channel in two ways. 
+First, both protocols proposed that the state within a channel can be organised in a hierarchy to support multiple-applications and an on-chain dispute for one application does not impact other applications in the channel. 
+Second, both protocols proposed the concept of a virtual channel that allows two parties who have not established a channel via the blockchain to connect with each other using a network of channels. This requires all channels along the route to lock up collateral while the virtual channel is open. 
+Unlike Sprites, both approaches proposed that the dispute process should  be used to determine the final $\stateinfoi$.
+After the dispute process has expired, the channel is turned off and all future state transitions for the application should be executed via the blockchain. 
 
 \section{State Channel Construction} 
 
@@ -298,19 +339,19 @@ In this case, the application contract verifies the state channel returns $\empt
 \section{Battleship within a State Channel} 
 
 %In this section, we propose tow contracts for the game battleship and demonstrate how it can be adopted to support state channels. 
-%One battleship game relies on a commitment to every slot in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
+%One battleship game relies on a commitment to every cell in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
 %We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
 We provide a high-level overview of the game battleship before proposing how to implement it as a smart contract.  
 In our proposed protocol, we demonstrate how to overcome the computational limitation of checking the validity of a player's board using fraud proofs via a challenge-response protocol. 
 Afterwards we present how to convert the battleship game to support state channels using the template in Section $\ref{sec:template}$. 
 %To play the game requires both parties to commit to a list of ships 
 %To overcome the computational limitation of checking the validity of a battleship game, we demonstrate how to use fraud proofs 
-%The first contract requires a commitment to every slot in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
+%The first contract requires a commitment to every cell in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
 %Afterwards we discuss how to overcome the computational limitation of checking a full board's validity by relying on a challenge-response protocol. 
 %This provides a fixed time period for a player to submit a proof of fraud that the counterparty's board is invalid.
 %If the fraud proof is correct (and accepted), then the contract atomically forfeits the counterparty's deposit. 
 %Finally we present how to convert both contracts to support state channels using the template in Section \ref{sec:template}. 
-%We propose two contracts for the battleship game where one game has a commitment to every slot in the grid $\hslot_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
+%We propose two contracts for the battleship game where one game has a commitment to every cell in the grid $\hcell_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
 %Afterwards, we present the fraud proofs which are compatible with both contracts and how to convert them to support state channels. 
 
 \subsection{Overview of Battleship}
@@ -329,9 +370,9 @@ If both parties are satisified that all revealed ships are well-formed, they can
 %Then, each player reveals all non-selected boards and list of ships to counterparty and this provides them an opportunity to verify all boards (and list of ships) are well-formed. 
 %If each player is satisified, then they signal their desire to begin the game using $\battleshipbegin$ 
 %Once the game is set up, both players take turns at shooting the other player's board.
-In each turn, the player selects a slot to shoot using $\battleshipattackslot$ and the counterparty must open the slot  within a fixed challenge time period. 
-To open, the counterparty reveals if the slot is occupied by water or a ship piece using $\battleshiprevealslot$.
-If this shot sinks a full ship, then the counterparty must instead reveal the full ship alongside the slot's opening using $\battleshipsinking$. 
+In each turn, the player selects a cell to shoot using $\battleshipattackcell$ and the counterparty must open the cell  within a fixed challenge time period. 
+To open, the counterparty reveals if the cell is occupied by water or a ship piece using $\battleshiprevealcell$.
+If this shot sinks a full ship, then the counterparty must instead reveal the full ship alongside the cell's opening using $\battleshipsinking$. 
 Of course, the player is provided another turn if their shot was successful.
 %Throughout the game, the loser may have an opportunity submit a proof of fraud using $\battleshipfraud$ if it is detectable the counterparty's board (or list of ships) is invalid. 
 
@@ -346,9 +387,9 @@ We present each phase of the game, how to establish the contract, the cut-and-ch
 The $\gamesetup$ phase is responsible for ensuring both players select a single list of ships before agreeing to begin the game. 
 Game play transitions between $\gameattack$ and $\gamereveal$ as both players take a turn at shooting the counterparty's ships. 
 The game transitions to $\gamewinner$ when one player wins the game and it will transition to $\gamefraud$ once the winner has opened all ship locations.
-This provides the loser a fixed time period to submit a proof of fraud that the winner's board is not well-formed or that the winner did not honestly reveal a slot during the game. 
+This provides the loser a fixed time period to submit a proof of fraud that the winner's board is not well-formed or that the winner did not honestly reveal a cell during the game. 
 Otherwise, the contract transitions to $\gamefinished$ that allows the winner to claim their winnings and reset the contract. 
-% to open  to declare a slot, otherwise the contract transitions to $\gamefinished$. 
+% to open  to declare a cell, otherwise the contract transitions to $\gamefinished$. 
 %Of course, the contract transitions to $\gamefraud$ if a proof of fraud to detect cheating by the counterparty is provided and we explore this phase further in Section \ref{sec:fraud}. 
 
 \paragraph{Contract establishment} 
@@ -372,13 +413,13 @@ Finally the game $\mathsf{round}$ is incremented regardless if it continues or n
 \paragraph{Game-play} \label{sec:gameplayships}
 %The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player has a turn at shooting the counterparty's ships. 
 The contract maintains a counter $\mathsf{move}$ which increments after each player has taken their turn. 
-In the $\gameattack$ phase, the player challenges the counterparty to open a slot $i,j$ by signing: 
+In the $\gameattack$ phase, the player challenges the counterparty to open a cell $i,j$ by signing: 
 
 \begin{center}
 	$\sigma^{shot}_{\participant} := \sign_{\participant}(i,j, \mathsf{move}, \mathsf{round},\appcontract)$ \\
 \end{center}
 
-This message is submitted using $\battleshipattackslot$ which transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
+This message is submitted using $\battleshipattackcell$ which transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
 The counterparty signs one of two messages depending on whether a ship was sunk:
 
 \begin{center}
@@ -386,31 +427,22 @@ The counterparty signs one of two messages depending on whether a ship was sunk:
 \end{center}
 
 The counterparty is responsible for submitting either signed message. 
-The first message states if the slot is marked with water $b=0$ or a ship location $b=1$.
-It is submitted using $\battleshiprevealslot$.
+The first message states if the cell is marked with water $b=0$ or a ship location $b=1$.
+It is submitted using $\battleshiprevealcell$.
 The second message declares the shot sank a ship and requires the counterparty to open the corresponding ship commitment $\hship$ to $\battleshipsinking$. 
 Each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} as this can later be used as a proof of fraud as discussed in Section \ref{sec:fraud}.
 The game transitions to $\gamewinner$ if one player has declared all their ships sunk. 
 
 \paragraph{End of game} 
-
-The winner opens the remaining ship commitments using $\battleshiprevealships$.
-A fixed time period is enforced to permit time for the loser to submit a proof of fraud using $\battleshipfraud$.
+After one player has lost the game (or if the contract has detected cheating by the loser as illustrated in Section \ref{sec:fraud}), the winner must open their their remaining ship commitments  using $\battleshiprevealships$.
+This provides a fixed time period for the loser to submit a proof of fraud which we present in Section \ref{sec:prooffraud}.
 After this time period, the winner can redeem their reward using $\battleshipgameover$ which also transitions the game phase to $\gamefinished$. 
-%,(i,j)$  
-%the signed message $\sign_{\participant}((b, r), (i, j), \instantiatedno, \appcontract)$.
+Of course, if both parties have cheated, then the winnings are sent to a pre-determined charity address (or simply burnt). 
 
-%$\sign_{\participant}((b, r), (i, j), \instantiatedyes, $ $(r_{1},...,r_{k}), \appcontract)$, where $r_{1},...,r_{k}$ are the nonces required to open $\hshiplocation_{1},...,$ $\hshiplocation_{k}$. 
+\subsection{Checking for Fraud} \label{sec:fraud}
 
-\subsection{Proof of Fraud} \label{sec:fraud}
-
-
-The contract can self-enforce the game's integrity and verify if the counterparty has cheated during the game.
-However fully validating the entire game requires significant computational resources and if this were performed within the contract then it would incur unreasonable transaction fees. 
-Therefore the contract also relies on the loser checking for fraud and submitting proof if the counterparty has cheated. 
-If the proof is submitted during the game, then the prover is set as the winner and the contract transitions to $\gamefraud$ which provides time to ensure both players have not cheated. 
-If the proof is submitted by the loser during $\gamewinner$, then the contract transitions to $\gamefinished$ and the loser is sent the winnings.
-In the following we highlight the fraud proofs that can be verified by the contract. 
+We present the simple integrity checks the contract can perform throughput the game to verify that either party has not cheated. 
+These checks are performed whenever a player calls $\battleshipattackcell, \battleshipsinking, \battleshiprevealcell, \battleshiprevealships$.
 
 
 \paragraph{Exceeded maximum number of moves} 
@@ -419,22 +451,34 @@ If $\mathsf{move}$ exceeds the number of cells available on the board, then the 
 This is the case as an honest player will have declared all their ships as sunk after every cell on their board has been opened.
 Thus the game should have transitioned to $\gamewinner$ before it exceeds $\mathsf{move}$ and instead it will transition to $\gamefinished$ with no player set as the winner. 
 
-\paragraph{Valid slot} 
-The contract checks if the slot $i,j$ is within the permitted range $0,0,...,10,10$ for any signed message received. 
+\paragraph{Players only play using valid cells}  
+The contract checks if the cell $i,j$ is within the permitted range $0 <= i < 10$ and $0 <= j < 10$ for any signed message received. 
 
-\paragraph{Player has shot the same slot twice} 
-The contract does not store the opening of slots and thus it cannot independently verify if a player has shot the same slot twice.
-The player must sign every slot opening and the counterparty can provide the contract with two signed messages $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the slot $i,j$. 
-The contract verifies the player signed both openings, that the openings are for the same slot, and $\mathsf{move}\neq\mathsf{move}'$. 
+\paragraph{A ship was not placed  horizontally or vertically}
+The contract can check whether an opened ship was placed on the board horizontally or vertically. 
+To verify, it checks that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
+Finally it also checks the ship's length which is pre-determined by the contract
+
+\subsection{Proof of Fraud}  \label{sec:prooffraud}
+
+Fully validating the entire game within the contract environment would incur unreasonable transaction fees. 
+We propose each player can be provided an opportunity submit a proof of fraud that the counterparty has cheated. 
+In the following we highlight the fraud proofs that can be verified by the contract. 
+
+\paragraph{Player has shot the same cell twice} 
+The contract cannot independently verify if a player has shot the same cell twice as it does not store the opening of cells.
+Our game requires each player to sign every cell opening and this allows the counterparty to provide signed evidence that the player has tried to attack the same cell twice.
+The counterparty submits this proof of fraud using $\battleshipsamecell$ with the two signed shots $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the cell $i,j$. 
+The contract verifies the player signed both shots, both shots are for the same cell, and $\mathsf{move}\neq\mathsf{move}'$. 
 This proof of fraud can be submitted to the contract at any point during the game. 
 
-\paragraph{Counterparty was dishonest about a slot opening}
-The counterparty has marked a slot $(i,j)$ as water, but an opened $\hship$ states it is a ship location. 
-%As previously mentioned, the contract only stores ship openings and the player is required to store every signed slot opening. 
-To prove fraud, the player submits the ship idenfitier $\hship$, the disputed slot location $i,j$ and the signed opening of the slot $\sigma^{hit}_{\participant}$. 
-The contract can verify if this slot opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
-On the other hand, the counterparty may also mark a slot as a ship location,  but no ships are at that location.
-This proof of fraud is similar as the player submits the disputed slot location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$.
+\paragraph{Counterparty was dishonest about a cell opening}
+The counterparty has marked a cell $(i,j)$ as water, but an opened $\hship$ states it is a ship location. 
+%As previously mentioned, the contract only stores ship openings and the player is required to store every signed cell opening. 
+To prove fraud, the player submits the ship identifier $\hship$, the disputed cell location $i,j$ and the signed opening of the cell $\sigma^{hit}_{\participant}$. 
+The contract can verify if this cell opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
+On the other hand, the counterparty may also mark a cell as a ship location,  but no ships are at that location.
+This proof of fraud is similar as the player submits the disputed cell location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$.
 The contract is satisified if it cannot find a ship that claims to be at that location. 
 
 %\paragraph{Adjacent ships} 
@@ -443,25 +487,24 @@ The contract is satisified if it cannot find a ship that claims to be at that lo
 %Any party can submit the location $i,j$ for the first ship and $i',j'$ for the second ship.  
 %The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i'\pm1, j'\pm1$ or if they claim to be at the same location $i,j = i',j'$.
 
-\paragraph{A ship was not placed  horizontally or vertically}
-The contract can check whether an opened ship was placed on the board horizontally or vertically. 
-To verify, it checks that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
-Finally it also checks the ship's length which is pre-determined by the contract
 
 \paragraph{Two ships claim to be at  the same cell} 
-This proof is applicable after both ships are opened and stored in the contract. 
-The index for both ships and the slot $i,j$ is sent to the contract.
-This allows the contract to look up the co-ordinates for each ship and check if it claims to be at location $i,j$. 
+The cheater has used the same cell for two or more ships.  
+The index for both ships and the cell $i,j$ must be submitted to the contract using $\battleshiptwoships$. 
+The cotract looks up the co-ordinates for each ship and checks if it claims to be at the same location $i.j$.
+This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
+NOTE: Is this implemented yet in the contract? 
 
 \paragraph{Ship was not declared as sunk}
-The counterparty was dishonest and did not declare a ship as sunk. 
+The counterparty did not declare a ship as sunk. 
+All signed cell openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ must be submitted to the contract using $\battleshipdeclarednotsunk$. 
+This allows the contract to verify that every ship location was opened and this implies the counterparty did not declare the ship as sunk as the final opening should be $\sigma^{sunk}_{\participant}$. 
 This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
-All signed slot openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ must be submitted to the contract.
-This allows the contract to verify that every ship location was opened which implies the counterparty did not declare the ship as sunk (i.e. the final opening of a ship location should be $\sigma^{sunk}_{\participant}$). 
 
 \paragraph{Challenge period has expired }
-The contract relies on a global clock (i.e. block timestamp or block height) to set a fixed time period $\timerchallenge$ for a player to perform an action (i.e. take a shot, open a slot, open all ships, etc). 
-If a player does not respond within this time period, then the counterparty can notify the contract to check if the challenge period has expired. 
+The contract relies on a global clock (i.e. block timestamp or block height) to set a fixed time period $\timerchallenge$ for a player to perform an action (i.e. take a shot, open a cell, open all ships, etc). 
+If a player does not respond within this time period, then the counterparty can notify the contract using $\battleshipchallengeexpired$  to check if the challenge period has expired. 
+
 
 \subsection{Modifications for a State Channel}
 
@@ -472,7 +515,7 @@ This includes allocating information to be used in the state channel, attaching 
 The purpose of our application template outlined in Section \ref{sec:template} is to allocate information for the state channel.
 When creating the contract, we set $\instantiated := \instantiatedno$ and store the dispute timer $\timerdispute$.
 Both players $\participant_{1},\participant_{2}$ are set for use by the state channel if it is instantiated and the battleship contract maintains (and increments) a counter $\mathsf{chan}_{\mathsf{ctr}}$ to track the number of times this state channel is turned on. 
-A new pre-condition $\textbf{discard if}$ $ \instantiated  = \instantiatedyes$ is included in every function\footnote{It is included in $\battleshipbegin, \battleshipgameover, \battleshipattackslot, \battleshiprevealslot, \battleshipsinking, \\ \battleshipfraud, \battleshiprevealboard$ and $\battleshiprevealships$. } and the transaction fails\footnote{A failed transaction reverts all computation and thus does not modify the state of any contract.} if the pre-condition is satisified.
+A new pre-condition $\textbf{discard if}$ $ \instantiated  = \instantiatedyes$ is included in every function\footnote{It is included in $\battleshipbegin, \battleshipgameover, \battleshipattackcell, \battleshiprevealcell, \battleshipsinking, \\ \battleshipfraud, \battleshiprevealboard$ and $\battleshiprevealships$. } and the transaction fails\footnote{A failed transaction reverts all computation and thus does not modify the state of any contract.} if the pre-condition is satisified.
 This effectively disables all functionality within the application contract if it is locked and the state channel is turned on. 
 
 \paragraph{Lock and unlock functions} 
@@ -521,8 +564,8 @@ We provde a high level overview of the experiment set up, the gas cost of playin
 	3 & Place bet ($\battleshipplacebet$)& 34,665 & \\
 	4 & Select counterparty's ships ($\battleshipselectboard$) & 422,892 & \\ 
 	5 & Ready to play ($\battleshipbegin$) & 47,628 & \\
-	6 & Attack ($\battleshipattackslot$) & 69,240 & \\
-	7a & Reveal cell ($\battleshiprevealslot$) & 71,828 & \\
+	6 & Attack ($\battleshipattackcell$) & 69,240 & \\
+	7a & Reveal cell ($\battleshiprevealcell$) & 71,828 & \\
 	7b & Reveal ship ($\battleshipsinking$)& 118,880 & \\
 	8 & Open ships ($\battleshiprevealboard$) & 159,682& \\
 	9 & Finish game ($\battleshipfinish$) & 280,766 & \\
@@ -600,14 +643,15 @@ Local instance of contract. Execute it, sign and exchange messages. What is the 
 %\end{table*}
 %
 
-\paragraph{Comparison of state channel constructions} 
-We present a comparison of all state channel constructions in Table \ref{table:comparison}
+%\paragraph{Comparison of state channel constructions} 
+%We present a comparison of all state channel constructions in Table \ref{table:comparison}
+
 \paragraph{Worst-case scenario for state channels} 
 
 One party can turn off the channel using the dispute process after all parties agree to execute the application off-chain.   
 This is problematic as all parties are now committed to executing the entire application via the blockchain.
 In the case of battleship, both parties commit to the battleship game using $\battleshipbegin$ and afterwards must play the entire turn-based game via the blockchain. 
-Each player may have to publish up to 200 transactions (i.e. 100 attack slots, 100 open slots) to finish the game play which incurs significant transaction fees and may require a prolonged period of time to complete. 
+Each player may have to publish up to 200 transactions (i.e. 100 attack cells, 100 open cells) to finish the game play which incurs significant transaction fees and may require a prolonged period of time to complete. 
 Thus state channels must be strictly viewed as an optimistic scaling solution only if all parties are trusted to co-operate.  
 %Our battleship game highlights the worst-case sc
 
@@ -672,36 +716,37 @@ However our experiment demonstrates that state channels may not be compatible fo
 Instead, state channels appear to be  useful for applications that require a small number of rounds and all parties will repeat the application's execution more than once. 
 Some applications in this direction include payments, casino games, boardroom elections and auctions.
 
+\newpage 
 \appendix
 
 \section{Commitment to entire board}
 
-One issue with our battleship game is that a player can lie about the opening of their slot. While they can never win the game by doing so; it does allow the player to require the counterparty to potentially shoot every slot on their board. One way to prevent this attack is to require the counterparty to commit to every slot on their board in advance of the game; and have it revealed throughout. The problem is that this requires a merkle tree verification per move or every hash (200) to be stored in the contract directly - thus increasing the game cost in the honest case. 
+One issue with our battleship game is that a player can lie about the opening of their cell. While they can never win the game by doing so; it does allow the player to require the counterparty to potentially shoot every cell on their board. One way to prevent this attack is to require the counterparty to commit to every cell on their board in advance of the game; and have it revealed throughout. The problem is that this requires a merkle tree verification per move or every hash (200) to be stored in the contract directly - thus increasing the game cost in the honest case. 
 
 
 \paragraph{Representing the board}
 
-A cell is represented as $\hslot = H(b, r)$, where  $r$ is a unique nonce and $b$ marks the location as water/ship. 
+A cell is represented as $\hcell = H(b, r)$, where  $r$ is a unique nonce and $b$ marks the location as water/ship. 
 Each cell is a leaf in a merkle tree and the root is stored in the contract. 
 
-\paragraph{Opening a slot} 
+\paragraph{Opening a cell} 
 
 During the game, the counterparty must open the cell $b,r$ alongside a merkle tree branch to prove that this cell is included in the board. 
 
-\paragraph{Keeping track of hits} The contract can maintain a bit string, and flip a bit every time a specific cell is hit. This can prevent a player hitting the same slot twice. A second bit string can be used to indicate if a slot was marked as "water" or "hit". i.e. look up to see if cell was hit, and then check if it was 0/1 (i.e. water/ship location). 
+\paragraph{Keeping track of hits} The contract can maintain a bit string, and flip a bit every time a specific cell is hit. This can prevent a player hitting the same cell twice. A second bit string can be used to indicate if a cell was marked as "water" or "hit". i.e. look up to see if cell was hit, and then check if it was 0/1 (i.e. water/ship location). 
 
 \paragraph{Benefits and Problems} Prevents players lying during the game (assuming the board is well-formed due to probablistic check). However - it requires a merkle tree verification every move which can be expensive over-time. Also need to self-enforce that the cells and the ship locations match - so all should be revealed at the end of this game - that is a lot of information to send. (i.e. 100 random nonces, 100 b values, etc). 
 
 
 \section{Extension to Battleship Contract}
 
-To avoid the issue of allowing a player to "dos" by lying during the game - we can require the party to commit to every slot on the board. 
+To avoid the issue of allowing a player to "dos" by lying during the game - we can require the party to commit to every cell on the board. 
 
 root + 7 hashes + 2 + opening. something along those lines. 
 
-(could be merkle tree or just store every slot explicitly) - point is that proof of openin is required. can no longer lie about slot opening, but is it worth the overhead? 
+(could be merkle tree or just store every cell explicitly) - point is that proof of openin is required. can no longer lie about cell opening, but is it worth the overhead? 
 
-- This prevents loser wasting turns - if they know they are going to lose, theyll simply not reveal their slots correctly and make the winner take up all their turns. 
+- This prevents loser wasting turns - if they know they are going to lose, theyll simply not reveal their cells correctly and make the winner take up all their turns. 
 
 \section{Security Analysis for Battleship Game}
 
@@ -836,76 +881,5 @@ root + 7 hashes + 2 + opening. something along those lines.
 
 	\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}\label{fig:appmodify}
 \end{figure}
-
-
-\begin{figure}[h]
-	\begin{boxedminipage}{\columnwidth}
-		\begin{center}
-			\textsf{BattleshipCon1}{}\\
-		\end{center}
-		
-		$\instantiated := \bot, \statechannel := \bot,	\participant  := \emptyset \\ 
-		 \timestart := 0, \timeend := 0,, \timerchallenge := 0, \timerdispute := 0$ \\
-		$\textsf{struct ship} \{(i,j),(i',j'),k, r\}, \mathsf{ship}[6]$ \\
-	    $\textsf{struct slot} \{b, r\}, \mathsf{slot}[10][10]$ \\
-	    $\hslot[10][10], \hship[6]$ \\
-		$\gamestatus := \gamesetup, \textsf{turn} := \bot$
-		
-		\begin{flushleft}
-			\constructor($\participant', \timerdispute', \timerchallenge$):
-			
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{set} $\participant := \participant'$ \\
-			\quad \textbf{set} $\timerdispute := \timerdispute'$ \\ 
-			\quad \textbf{set} $\timerdispute:= \timerchallenge$ \\ 
-			
-		\end{tabular}
-		
-		\begin{flushleft}
-			\oninput \stringlitt{select}($\sigma_{\participant}, \hslot[10,10], k[6], \hship[6]$): 
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
-			\quad \textbf{if} $\verifysig(\sigma_{\participant},\hslot[0,0],...,\hslot[10,10],(k[1],\hship[1]),...,(k[n],\hship[n]),\participant)$ \\
-			
-		\end{tabular}
-		
-		
-		\begin{flushleft}
-			\oninput  \stringlitt{begingame}($\hstate', \monotoniccounter', \Sigma_{\participant}$):
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
-		\end{tabular}
-		
-		\begin{flushleft} 
-			\oninput \stringlitt{resolve}(): 
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{discard if} $\chanstatus \neq \chandispute$ \\
-			\quad \textbf{discard if} $\timenow < \timeend$ \\
-			\quad \textbf{set} $\chanstatus := \chanoff$ 
-		\end{tabular}
-		
-		\begin{flushleft} 
-			\oninput \stringlitt{getstatehash}(): 
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
-			\quad \textbf{return} $\hstatei$
-		\end{tabular}
-		
-		\begin{flushleft} 
-			\oninput \stringlitt{getdispute}(): 
-		\end{flushleft}
-		\begin{tabular}{l}
-			\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
-			\quad \textbf{return} $(\timenow, \timeend, \monotoniccounter)$
-		\end{tabular}
-	\end{boxedminipage}
-	\caption{The state channel contract. It is responsible for managing the dispute process and determining the final state hash.  Discard fails the transaction execution if the pre-condition is satisfied.} \label{fig:statechannel}
-\end{figure}
-
 
 \end{document}
