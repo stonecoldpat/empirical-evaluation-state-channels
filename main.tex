@@ -131,23 +131,30 @@
 
 \begin{document}
 
-
 	\title{An empirical evaluation of state channels as a scaling solution for cryptocurrencies}
 	\maketitle
 	\begin{abstract}
+%		Cryptocurrencies do not scale. The community are pursuing three scaling approaches which include new blockchain protocols, sharding and off-chain. 
+%		New blockchain protocols can strictly increase the network's throughput and sharding can distribute the set of transactions verifired by peers on the network. 
+%		However there is a tradeoff between increasing the throughput of transactions on the network and peers with the computational resources to validate every transaction. 
+%		Off-chain protocols try to alleivate this tradeoff by reducing the transactions that must be validated by the network.
+%		One leading off-chain approach is called a state channel which lets a group of parties to transact amongst themselves and only publish the final transaction. 
+%		To evaluate state channels as a scaling solution, we explore the minimal modifications required for an application contract before it can be depoyed as a state channel. 
+%		
+%		 peers are resposible for verifying a set of transactions, there is a tradeoff between  are three scaling approaches tha
 		So-called Layer 2 and Off-chain solutions are heralded as a scaling solution for cryptocurrencies. 
 	\end{abstract} 
 
 \section{Introduction}
 
-Since 2009, we have witnessed the rise of cryptocurrencies and the market capitalisation of all cryptocurrencies peaked to \$1 trillion US dollars in December 2017.
+Since 2009, we have witnessed the rise of cryptocurrencies as the market capitalisation for all cryptocurrencies peaked to \$1 trillion US dollars in December 2017.
 While Bitcoin was the first cryptocurrency designed to support financial transactions, another promiment cryptocurrency called Ethereum has emerged for executing programs called smart contracts. 
 The promise of smart contracts is to support the execution of applications without human oversight or a central operator. 
 Some applications proposed include decentralised (and non-custodial) token exchanges, publicly verifiable gambling games, auctions for digital goods, boardroom electronic voting, etc. 
 
 However cryptocurrencies do not yet scale. 
 Bitcoin can support approximately 7 transactions per second and Ethereum can support around 13 transactions per second. 
-The lack of scalability is one of the primary hurdles preventing global adoption of cryptocurrencies as the network's transaction fee typically become unaffordable  for most users whenever the transaction throughput ceiling is reached (i.e. the average fee in Bitcoin was \$20 in December 2017).
+The lack of scalability is one of the primary hurdles preventing global adoption of cryptocurrencies as the network's transaction fee typically become unaffordable  for most users whenever the transaction throughput ceiling is reached (i.e. the average fee in Bitcoin reached \$20 in December 2017).
 The community are pursuing three approaches to scale the network which include new blockchain protocols, sharding the blockchain and off-chain protocols. 
 New blockchain protocols such as DAGs can strictly increase the network's throughput, whereas sharding can be used to distribute transactions into processing areas such that peers only validate transactions that interest them. 
 However there is a tradeoff between increasing the throughput and supporting a larger userbase in terms of affordable transaction fees, and the set of validators who have the computational resources to validate every transaction on the network.
@@ -157,31 +164,37 @@ It lets a group of parties to deposit coins into an off-chain application, trans
 There are two proposals for the off-chain approach which includes an alternative blockchain (i.e. a sidechain) or a channel. 
 A sidechain has a set of block producers (i.e. miners or a single operator) for deciding the order of transactions and users are responsible for signing/publishing transactions for inclusion. 
 There are several sidechain protocols which bootstrap from Bitcoin (including a live network by RSK), whereas Plasma and NOCUST are non-custodial sidechains which bootstrap from Ethereum for financial transactions.
-While sidechains are promising, they still require a blockchain protocol which may have a transaction throughput ceiling.
+While sidechains are a promising off-chain solution, they still require a blockchain protocol which may also have a transaction throughput ceiling.
 % and there is still no non-custodial sidechain protocol that can support executing smart contracts. 
 
 On the other hand, a channel can be considered a non-fault tolerant (and $n$ out of $n$) consensus protocol.
-All users are collectively responsible for authorising every new state of the application amongst themselves.
+All parties are collectively responsible for authorising every new state of the application amongst themselves.
 There is no blockchain protocol and all parties typically only store the most recently authorised state of the application. 
-Channels first emerged in Bitcoin to support one-way payments between two parties (i.e. a payment channel), but has since evolved in Bitcoin towards the development of an off-chain payment network a sender can synchronise a single payment across a route of channels to the receiver. 
-Several companies including Blockstream, LND and ACINQ are implementing this off-chain payment network.
-At the same time, the capability of a channel is being taken further in Ethereum. 
-State channels are designed to support a group of parties to execute a smart contract amongst themselves as opposed to only faciliating payments. 
-They promise to offer instant finality once the users have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
-While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
-To further explore state channels as a scaling solution, the Ethereum Foundation has donated over \$2.7m, the Ethereum Community Fund has donated \$275k and several companies have raised capital to build state channels including CelerNetwork (\$30m) and FunFair (\$20m).
+Channels first emerged in Bitcoin to support one-way payments between two parties (i.e. a payment channel), but has since evolved in Bitcoin towards the development of an off-chain payment network by several companies including Blockstream, LND and ACINQ. 
+% a sender can synchronise a single payment across a route of channels to the receiver. 
+%Several companies including Blockstream, LND and ACINQ are implementing this off-chain payment network.
+At the same time, there are several proposals by Sprites, Pisa, Perun and Counterfactual called state channels. 
+All proposals  expand the capability of a channel to support a group of parties  to execute a smart contract amongst themselves as opposed to only faciliating payments. 
+They promise to offer instant finality for every state update, no transaction fees, protection for each party against a full collusion of all other parties, and the throughput is only restricted by the network latency between the users. 
+%when the group of parties have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
+%While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
+To further explore state channels as a scaling solution, the Ethereum Foundation has donated over \$2.7m and the Ethereum Community Fund has donated \$275k to L4, Perun, Pisa, Enuma Technologies and Magmo. 
+As well, several companies have raised substantial capital to build state channels including CelerNetwork with \$30m and FunFair \$20m.
 
-In this paper, we perform an empirical evaluation of state channels as a scaling solution for cryptocurrencies. 
+In this paper, we present an empirical evaluation of state channels as a scaling solution for cryptocurrencies. 
 To aid this evaluation we have designed a two-player battleship game as a smart contract.
-This style of game is not considered viable to play via the blockchain as each player may require up to 200 transactions (i.e. attack 100 cells and open 100 cells) per game which would incur unreasonable fees.
-However state channels are perceived as a potential scaling solution which may allow applications like battleship to be played over a blockchain.  
+We reduce the computational and storage overhead required by relying on the players validating the game play and providing a proof of fraud if cheating is detected.  
+%Each player is responsible for validating the game and presenting a proof of fraud to the smart contract if there is cryptographic evidence of the counterparty cheating. 
+This style of application is still not considered viable to execute via the blockchain due to the quantity of transactions required.
+For example, each player may require up to 200 transactions (i.e. attack 100 cells and open 100 cells) per game and this will incur unreasonable transaction fees.
+We chose battleship for our experiment as state channels are perceived as a potential scaling solution to allow similar applications to be executed over the blockchain. 
 Our contributions are as follows: 
 
 \begin{itemize}
 \item We explore and present the minimal modifications required to deploy an application contract as a state channel, 
-\item We present a new state channel construction that combines the application-agnostic and $n$ model from Sprites and Pisa with letting the channel to be turned off and the application's execution to continue via the blockchain as proposed by Perun and Counterfactual. 
+\item We present a new state channel construction which is application-agonostic, supports $n$ parties and allows the channel to be turned off such that the application's progress can continue via the blockchain. This combines the constructions from Sprites, Pisa, Perun and Counterfactual. 
 \item We provide a proof of concept implementation to evaluate deploying applications within a state channel.
-This experiment highlights the worst-case scenario of a state channels and how it potentially renders battleship as an unreasonable application to be deployed within a state channel. 
+This experiment highlights the worst-case scenario of state channels and how it potentially renders applications like battleship as unreasonable to deploy within a state channel. 
 \end{itemize}
 
 \section{Background}
@@ -732,8 +745,12 @@ However our experiment demonstrates that state channels may not be compatible fo
 Instead, state channels appear to be  useful for applications that require a small number of rounds and all parties will repeat the application's execution more than once. 
 Some applications in this direction include payments, casino games, boardroom elections and auctions.
 
+\section{Conclusion} 
+
+
 \newpage 
 \appendix
+
 
 
 \begin{table}
