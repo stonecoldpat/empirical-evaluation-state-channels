@@ -140,28 +140,50 @@
 
 \section{Introduction}
 
+Since 2009, we have witnessed the rise of cryptocurrencies and the market capitalisation of all cryptocurrencies peaked to \$1 trillion US dollars in December 2017.
+While Bitcoin was the first cryptocurrency designed to support financial transactions, another promiment cryptocurrency called Ethereum has emerged for executing programs called smart contracts. 
+The promise of smart contracts is to support the execution of applications without human oversight or a central operator. 
+Some applications proposed include decentralised (and non-custodial) token exchanges, publicly verifiable gambling games, auctions for digital goods, boardroom electronic voting, etc. 
 
+However cryptocurrencies do not yet scale. 
+Bitcoin can support approximately 7 transactions per second and Ethereum can support around 13 transactions per second. 
+The lack of scalability is one of the primary hurdles preventing global adoption of cryptocurrencies as the network's transaction fee typically become unaffordable  for most users whenever the transaction throughput ceiling is reached (i.e. the average fee in Bitcoin was \$20 in December 2017).
+The community are pursuing three approaches to scale the network which include new blockchain protocols, sharding the blockchain and off-chain protocols. 
+New blockchain protocols such as DAGs can strictly increase the network's throughput, whereas sharding can be used to distribute transactions into processing areas such that peers only validate transactions that interest them. 
+However there is a tradeoff between increasing the throughput and supporting a larger userbase in terms of affordable transaction fees, and the set of validators who have the computational resources to validate every transaction on the network.
 
-In December 2017, cryptocurrencies achieved a market capitalisation of over \$1 trillion US dollars which caused a frenzy as users raced to purchase coins. 
-However, this period of time also demonstrated the scalability issues 
+An alternative scaling approach is called off-chain which aims to reduce the number of transactions processed by the blockchain.
+It lets a group of parties to deposit coins into an off-chain application, transact amongst themselves without interacting with the global network, and finally re-distribute the deposited coins depending on the application's outcome. 
+There are two proposals for the off-chain approach which includes an alternative blockchain (i.e. a sidechain) or a channel. 
+A sidechain has a set of block producers (i.e. miners or a single operator) for deciding the order of transactions and users are responsible for signing/publishing transactions for inclusion. 
+There are several sidechain protocols which bootstrap from Bitcoin (including a live network by RSK), whereas Plasma and NOCUST are non-custodial sidechains which bootstrap from Ethereum for financial transactions.
+While sidechains are promising, they still require a blockchain protocol which may have a transaction throughput ceiling.
+% and there is still no non-custodial sidechain protocol that can support executing smart contracts. 
 
-Cryptocurrencies do not scale. The community are pursuing three appro
-We propose a new state channel construction that combines the dispute process model from Sprites to support $n$-parties, the ability to turn a channel on/off by requiring the dispute process to determine the latest state commitment from L4/PERUN and finally it incorporates state commitments from PISA such that the dispute process is only responsible for accepting the latest state commitment that was authorised by all parties. 
+On the other hand, a channel can be considered a non-fault tolerant (and $n$ out of $n$) consensus protocol.
+All users are collectively responsible for authorising every new state of the application amongst themselves.
+There is no blockchain protocol and all parties typically only store the most recently authorised state of the application. 
+Channels first emerged in Bitcoin to support one-way payments between two parties (i.e. a payment channel), but has since evolved in Bitcoin towards the development of an off-chain payment network a sender can synchronise a single payment across a route of channels to the receiver. 
+Several companies including Blockstream, LND and ACINQ are implementing this off-chain payment network.
+At the same time, the capability of a channel is being taken further in Ethereum. 
+State channels are designed to support a group of parties to execute a smart contract amongst themselves as opposed to only faciliating payments. 
+They promise to offer instant finality once the users have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
+While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
+To further explore state channels as a scaling solution, the Ethereum Foundation has donated over \$2.7m, the Ethereum Community Fund has donated \$275k and several companies have raised capital to build state channels including CelerNetwork (\$30m) and FunFair (\$20m).
 
-
-1. how much has the ethereum foundation invested?
-2. how much has the ethereum community fund invested?
-3. how many companies exist to have deployed state channels / currently in the works. 
-
-
-A channel between a group of parties, and a mechanism to synchronise a route of payments based on a single payment/action. We only consider the former, and leave the latter (and its network) as future work. 
+In this paper, we perform an empirical evaluation of state channels as a scaling solution for cryptocurrencies. 
+To aid this evaluation we have designed a two-player battleship game as a smart contract.
+This style of game is not considered viable to play via the blockchain as each player may require up to 200 transactions (i.e. attack 100 cells and open 100 cells) per game which would incur unreasonable fees.
+However state channels are perceived as a potential scaling solution which may allow applications like battleship to be played over a blockchain.  
+Our contributions are as follows: 
 
 \begin{itemize}
-\item A new dispute process that supports any application and ensures quick liveness of the application (i.e. sprites, every command dispute = slow, L4/Perun requires incorporating channel into app)
-\item Financial incentives + fraud proofs can be used to avoid elaborate cryptography to build meaningful applications. Can only go so far (i.e. makes sense for battleships as everything is eventually revealed, but not e-voting) 
-\item The first empirical evaluation of state channels as a scaling solution. 
-
+\item We explore and present the minimal modifications required to deploy an application contract as a state channel, 
+\item We present a new state channel construction that combines the application-agnostic and $n$ model from Sprites and Pisa with letting the channel to be turned off and the application's execution to continue via the blockchain as proposed by Perun and Counterfactual. 
+\item We provide a proof of concept implementation to evaluate deploying applications within a state channel.
+This experiment highlights the worst-case scenario of a state channels and how it potentially renders battleship as an unreasonable application to be deployed within a state channel. 
 \end{itemize}
+
 \section{Background}
 
 In this section, we provide background information about Ethereum, smart contracts and how the concept of a channel has evolved. 
@@ -271,20 +293,28 @@ It compares both hashes before storing the full state and re-enabling all functi
 
 \subsection{State channel contract}
 
-We provide an overview of the state channel contract to discuss how it is instantiated, how parties collectively authorise new states off-chain and how the dispute process is used to confirm the final state hash. 
+We provide an overview of the state channel contract before discussing how to instantiate it,  how parties collectively authorise new states off-chain and how the dispute process is used to confirm the final state hash. 
 
 \paragraph{Overview of the state channel contract} 
-Figure \ref{fig:statechannel} presents an overview of the state channel contract. 
-It contains a list of parties $\participant_{1},...,\participant_{n}$, a dispute timer $\timerdispute$, the application contract's address $\appcontract$ and a  $\chanstatus = \{\chanon, \chandispute, \chanoff\}.$
+Figure \ref{fig:statechannel} presents an overview of the state channel contract.
+The state channel can be in one of three states which are $\chanstatus := \{\chanon, \chandispute, \chanoff\}$.
+All parties can collectively authorise new states for the application when the state channel is set as $\chanstatus := \chanon$.
+Any party can trigger a dispute which sets the state as $\chanstatus := \chandispute$ and this provides a fixed time period for all parties to submit an authorised state hash (and its corresponding version).
+Once the dispute is resolved or if the channel is closed co-operatively, then the state is set to $\chanstatus := \chanoff$ and this determines the final state hash for the application. 
+If the channel is closed using the dispute process, then a record of the dispute is stored which includes the starting time and finishing time for the dispute $\timestart, \timeend$ and the final version $\monotoniccounter$.
 
-Upon creation, the contract is set as $\chanstatus := \chanon$ and all parties can collectively execute the application by signing every new state hash (and an incremented nonce).
-This is denoted as $\sigma_{\participant} := \sign_{\participant}(\hstatei, \monotoniccounter)$, where  $\hstatei = \hash(\stateinfoi, \rani)$ is the state hash ($\ran$ is a nonce) and $\monotoniccounter$ is an incremented monotonic counter. 
-A state hash is only considered valid when each party has a signature from every other party. 
-If one party aborts and does not sign the state hash, then any party can turn off the channel by triggering a dispute using $\statechanneldispute$ which sets $\chanstatus := \chandispute$. 
+%All parties can begin collectively executing the application by signing every new state hash (and its version). 
+%A state hash is only considered valid when each party has a signature from every other party. 
+%The channel can be closed co-operatively using $\statechannelclose$ if both parties agree. 
+%Otherwise if one party aborts and does not sign the state hash, then any party can turn off the channel by triggering a dispute using $\statechanneldispute$.
+%This provides a fixed time period between $\timenow$ and $\timedispute$ for all parties to respond using $\statechannelsetstate$ with an authorised state hash (and its corresponding version). 
+%Any party can resolve the dispute using $\statechannelresolve$ which sets $\chanstatus := \chanoff$.
+%Afterwards the application contract $\appcontract$ can fetch the final state hash $\hstatei$ and its version using $\statechanneldispute$. 
+%The dispute starting time and the final version is stored and can be fetched using $\statechannelgetdispute$. 
 
-This provides a fixed time period between $\timenow$ and $\timedispute$ for all parties to respond using $\statechannelsetstate$ with $\hstate$, its monotonic counter $\monotoniccounter$ and a corresponding signature from every party $\Sigma_{\participant}$. 
-Afterwards, any party can resolve the dispute using $\statechannelresolve$ which sets $\chanstatus := \chanoff$ and allows the final $\hstatei$ to be fetched by $\appcontract$ using  $\statechannelgetcommitment$. 
-Finally the dispute time period and the final counter is recorded which can later be fetched using $\statechannelgetdispute$. 
+%$The channel can be closed co-operatively using $\statechannelclose$ if both parties sign 
+%\sigma_{\participant} := \sign_{\participant}(\mathsf{''close"},\hstatei, \monotoniccounter, \statechannel)$
+
 %
 %
 %This command alongside a commitment to the new state and 
@@ -297,28 +327,38 @@ Finally the dispute time period and the final counter is recorded which can late
 
 \paragraph{Creating the channel} 
 
-The application contract $\appcontract$ is responsible for instantiating the state channel contract and providing it with the list of participants $\participant_{1},...,\participant_{n}$, the dispute timer $\timerdispute$, the address $\appcontract$ and setting $\chanstatus := \chanon$. 
-As we discuss in the next section, all functionality in the application contract is disabled after the state channel contract is created. 
+The application contract $\appcontract$ is responsible for instantiating the state channel contract with the list of participants $\participant_{1},...,\participant_{n}$ and the dispute timer $\timerdispute$.
+The state channel is initially set as $\chanstatus := \chanon$ and as we discuss in the next section all functionality in the application contract will be disabled. 
+
+%The state hash is $\hstatei = \hash(\stateinfoi, \rani, \statechannel)$, where $\stateinfoi$ is the full state and $\ran$ is a blinding nonce. 
+%Signing the new state hash is denoted as  $\sigma_{\participant} := \sign_{\participant}(\hstatei, \monotoniccounter)$ where $\monotoniccounter$ is the incremented version for this state hash. 
 
 \paragraph{Authorising off-chain state hashes}
 A command $\cmd$ is a function call within the application contract.
 Any party can select a command $\cmd$ and propose a new state transition $\stateinfoplus := \mathsf{transition}(\stateinfoi, \cmd)$.
-The new state is hashed  $\hstateplus = \hash(\stateinfoplus, \ranplus)$ and signed  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$.
-To finalise the state transition, the proposer sends $\cmd,\hstateplus, \stateinfoplus, \ranplus$ to all other parties for their approval.
-
+The new state is hashed  with a blinding nonce $\hstateplus = \hash(\stateinfoplus, \ranplus)$ and signed  $\sigma_{\participant} := \sign(\hstateplus,\monotoniccounter+1)$.
+To complete the state transition, the proposer sends $\cmd,\hstateplus, \stateinfoplus, \ranplus$ and $\sigma_{\participant}$ to the other parties for their approval.
 All other parties in the channel verify the state transition before authorising it. 
-To verify, each party re-computes the state transition $\stateinfoplus' := \mathsf{transition}(\stateinfoi, \cmd)$ and the state hash $\hstateplus' := \hash(\stateinfoplus', \ranplus)$.
-Then, each party verifies the received signature $\verifysig(\participant, (\hstateplus', \monotoniccounter+1), \sigma_{\participant})$ and that the counter is the largest received so far. 
-If satisfied, each party signs the state hash  $\sigma_{k} := \sign(\hstateplus,\monotoniccounter+1, \statechannel, \appcontract)$ and sends their signature alongside the state information $\cmd,\hstateplus, \stateinfoplus, \ranplus, \sigma_{k}$ to all other parties. 
+To verify, each party re-computes the transition $\stateinfoplus' := \mathsf{transition}(\stateinfoi, \cmd)$ and state hash $\hstateplus' := \hash(\stateinfoplus', \ranplus)$.
+Then each party verifies the signature $\verifysig(\participant, (\hstateplus', \monotoniccounter+1), \sigma_{\participant})$ and that the version is the largest received so far. 
+If satisfied, each party signs the state hash  $\sigma_{k} := \sign(\hstateplus,\monotoniccounter+1, \statechannel, \appcontract)$ and sends this signature to all other parties. 
+A new state hash is only considered valid when each party has received a signature from every other party.  
+If one party does not receive all signatures by a local time-out, then this party can trigger the dispute process to turn off the channel, unlock the application and continue its execution via the blockchain. 
 
-The new state hash is only considered valid when each party has received a signature from every other party.  If one party does not receive all signatures within a local time-out, then this party can trigger the dispute process to turn off the channel and continue the application's execution on-chain. 
+\paragraph{Dispute process} 
 
-\paragraph{Dispute process.} 
+Any party can trigger the dispute process using $\statechanneldispute$.
+This self-enforces the dispute time period $\timestart := \timenow$, $\timeend := \timedispute$ and sets $\chanstatus = \chandispute$. 
+All parties can submit the latest state hash, its version and the list of signatures to prove it was authorised) using $\statechannelsetstate$. 
+The state channel contract $\statechannel$ only stores $\hstatei$ if it is signed by all parties and it is  has the largest version $\monotoniccounter$ received so far. 
+After the dispute period has expired, any party can resolve it using $\statechannelresolve$.
+This sets $\chanstatus = \chanoff$, stores a dispute record ($\timestart,\timeend, \monotoniccounter$) and allows the application contract $\appcontract$ to fetch the final state hash $\hstatei$. 
 
-Any party can trigger the dispute process using $\statechanneldispute$ which self-enforces a time period $\timestart := \timenow$, $\timeend := \timedispute$ and sets $\chanstatus = \chandispute$. 
-Any party can submit the latest state hash (alongside a signature from every party $\Sigma_{\participant})$ during the dispute period using $\statechannelsetstate$. 
-The state channel contract $\statechannel$ only stores the $\hstatei$ if it is  signed by all parties within the state channel and it is  associated with the largest $\monotoniccounter$ received so far. 
-After the dispute period has expired, any party can resolve it using $\statechannelresolve$ which sets $\chanstatus = \chanoff$, stores a dispute record ($\timestart,\timeend, \monotoniccounter$) and allows the application contract $\appcontract$ to fetch the final state hash $\hstatei$. 
+\paragraph{Co-operative close}
+All parties can sign 
+$\sigma_{\participant} := \sign_{\participant}(\mathsf{''close"},\hstatei, \monotoniccounter, \statechannel)$ and submit it to the state channel using $\statechannelclose$.
+This stores the state hash $\hstatei$, its version $\monotoniccounter$ and sets $\chanstatus := \chanoff$. 
+No dispute is recorded in the contract. 
 
 \subsection{Application Contract}
 
@@ -341,7 +381,7 @@ Finally the application must include two new functions $\applock$ that instantia
 
 
  
-\paragraph{Lock application contract} All parties must approve to instantiating the state channel by signing $(\chanon, \appcontract, \timerdispute, \mathsf{k}$), where $\chanon$ signals turning on the channel, $\mathsf{k}$ is an incremented counter to ensure freshness of the signed message and $\timerdispute$ is the fixed time period for the dispute process. 
+\paragraph{Lock application contract} All parties must agree to create the state channel by signing $(\chanon, \appcontract, \timerdispute, \mathsf{k}$), where $\chanon$ signals turning on the channel, $\mathsf{k}$ is an incremented counter to ensure freshness of the signed message and $\timerdispute$ is the fixed time period for the dispute process. 
 Any party can call $\applock$ with the list of signatures $\Sigma_{\participant}$, $\timerdispute$ and $\mathsf{k}$ to turn on the state channel. 
 The application contract $\appcontract$ verifies all signatures and that $\mathsf{k}$ represents the largest counter received so far.
 If satisfied, $\appcontract$ sets  $\instantiated := \instantiatedyes$ effectively disables all functionality within the application.
@@ -568,30 +608,24 @@ In the case of our battleship contract, we must disable the auxillery functions 
 To disable, both functions can simply be removed from the off-chain version of the contract. 
 Additionally, the off-chain contract can include a new $\battleshipgetstate$ to return the full state and the corresponding state hash $\hstate$ for signing. 
 
-\section{Experiment on Ethereum's Test Network}
+\section{Proof  of Concept Implementation}
 
-We present a proof of concept implementation of both the battleship game and the state channel as smart contracts in Ethereum. 
-We provde a high level overview of the experiment set up, the gas cost of playing the battleship game on-chain, the additional gas cost of modifying the game to support state channels, the gas cost of creating / closing the state channel and finally the off-chain contract for verifying state transitions in the state channel. 
+We present a proof of concept implementation for our battleship game within a state channel.
+The experiment was performed on an Ethereum's private network\footnote{This private network mimics the gas cost of Ethereum's production network.} and the gas costs for our proposed modifications are presented in Table \ref{tab:costs}. 
 
-\paragraph{Experiment setup} 
+Our experiment involves three contracts which includes the unmodified battleship contract (Step 1), the modified battleship contract (Step 15) and the state channel contract (Step 16). 
+Deploying both the modified and unmodified battleship contract highlights the cost for modifying an application contract to support a state channel is approximately 1 million gas. 
+A single game of battleship (Steps 4-9) via the blockchain costs approximately 100 mil gas in the worst-case if each player must attack (and reveal) 200 cells, and in the average case of 30 attacks\footnote{Cite blog post chris found} (and reveals) it costs approximately 20 mil gas. 
+Locking the battleship game, creating the state channel and performing the dispute process costs approximately 2 million gas.
+Unlocking the battleship game and submitting the entire game state costs 2 million gas. 
+Steps 11-14 present the costs for all fraud proofs and only one fraud proof is required to prove the counterparty cheated. 
 
-What computers did we use? Was a central server involved for co-ordination? What did we use to simulate contract execution? Did we use private/test/main net? 
+To verify and authorise states off-chain, each player runs a local blockchain with a copy of the Ethereum Virtual Machine (EVM), instantiates the battleship contract and the current state of the game is set. 
+To play a move, each player sends the counterparty a signed transaction that can be executed in their local blockchain. 
+Both players execute the transaction, fetch the full state from the battleship contract, hash it, and exchange signatures for the new state hash. 
+*How is chris handing the time? The state hash will be different if we rely on t now. 
+Every move requires approximately 2 seconds over a network. 
 
-\paragraph{On-chain battleship game game} 
-
-How much does it cost to run the full battleshop game on-chain? Without a state chanel? 
-
-\paragraph{Modifications to support a state channel} 
-
-How much does it cost for the new state channel? How much does it cost to include the new functionality + variables? How much does it cost to submit and store a "full state" to the blockchain?  
-
-\paragraph{The state channel and its dispute process } 
-
-How much does it cost for the new state channel? How much does it cost to include the new functionality + variables? How much does it cost to submit and store a "full state" to the blockchain?  
-
-\paragraph{The off-chain contract for verifying state transitions} 
-
-Local instance of contract. Execute it, sign and exchange messages. What is the round trip overhead? What error range did we use for timers? (i.e. within 1-2 minutes). 
 
 \section{Discussion} 
 
@@ -660,6 +694,10 @@ In fact, this dilemma can be summed up in a single question:
 
 To answer the above question, our empirical evaluation confirms that based on the current state of the Ethereum network, the Funfair is preferable as it minimises the cost of the dispute process. 
 This is crucial to reduce the impact of economic attacks to undermine the safety guarantee provided by state channels. We need experiment results to back this up with numbers. 
+
+\paragraph{Disabling side-effects} 
+We provide a table in the appendix of commans that must not be available in the off-chain contract as they either rely on the environment or other contracts. 
+
 
 \paragraph{Application timers} 
 As we mentioned in Section \ref{sec:timers}, there is no global clock available for setting time within a state channel as the contract no longer sets $\timechallenge$ on behalf of both parties.
@@ -743,7 +781,7 @@ Some applications in this direction include payments, casino games, boardroom el
 		\hline 
 	\end{tabular}
 	
-	\caption{Costs of running the battleship game on-chain and within the state channel}
+	\caption{Costs of running the battleship game on-chain and within the state channel}\label{tab:costs}
 \end{table}
 
 
