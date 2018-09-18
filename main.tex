@@ -103,6 +103,7 @@
 %\newcommand{\battleshipshipnotplaced}{\mathsf{BS.fraudnothit}}
 \newcommand{\battleshipdeclarednotsunk}{\mathsf{BS.declarednotsunk}}
 \newcommand{\battleshipdeclarednothit}{\mathsf{BS.declarednothit}}
+\newcommand{\battleshipdeclarednotwater}{\mathsf{BS.declarednotwater}}
 \newcommand{\battleshipsamecell}{\mathsf{BS.attacksamecell}}
 \newcommand{\battleshiptwoships}{\mathsf{BS.celltwoships}}
 \newcommand{\battleshipchallengeexpired}{\mathsf{BS.expiredchallenge}}
@@ -173,16 +174,17 @@ Channels first emerged in Bitcoin to support one-way payments between two partie
 % a sender can synchronise a single payment across a route of channels to the receiver. 
 %Several companies including Blockstream, LND and ACINQ are implementing this off-chain payment network.
 At the same time, there are several proposals by Sprites \cite{miller2017sprites}, Pisa \cite{mccorry2018pisa}, Perun \cite{dziembowski2017perun,statechannelnetworks} and Counterfactual \cite{coleman2018counterfactual} called state channels. 
-All proposals expand the capability of a channel to support a group of parties  to execute a smart contract amongst themselves as opposed to only faciliating payments. 
-They promise to offer instant finality for every state update, no transaction fees, protection for each party against a full collusion of all other parties, and the throughput is only restricted by the network latency between the users. 
+All proposals expand the capability of a channel to support a group of parties  to execute a smart contract (i.e. a general program) amongst themselves as opposed to only faciliating payments. 
+They promise instant finality for every transaction in the channel and there are no transaction fees to be paid. 
+Channels are also self-enforcing as each party is protected against a full collusion of all other parties and in terms of scalability the throughput is only restricted by the network latency between the parties. 
 %when the group of parties have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
 %While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
 The Ethereum Foundation has donated over \$2.7m \cite{efscaling1,efscaling2,efscaling3}  and the Ethereum Community Fund has donated \$275k \cite{ecfscaling} to further explore state channels as a scaling solution,
-As well, companies have raised substantial capital to deploy state channels including Raiden at \$33m \cite{raidenICO} and FunFair at \$26m \cite{funfair}.
+As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO} and FunFair at \$26m \cite{funfair}.
 
 In this paper, our empirical evaluation focuses on a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
 To aid this evaluation we have designed a two-player battleship game as a smart contract.
-We reduce the computational and storage overhead required by relying proofs of fraud as players validate the game themselves and provie evidence if cheating is detected. 
+%We reduce the computational and storage overhead required by relying proofs of fraud as players validate the game themselves and provie evidence if cheating is detected. 
 An application like battleship is not typically considered viable to execute via the blockchain due to the quantity of transactions required and in our experiment we confirm this perception as the financial cost is between \$16.27 and \$24.05. 
 %This style of application is still not considered viable to execute via the blockchain due to the quantity of transactions required.
 %For example, each player may require up to 200 transactions (i.e. attack 100 cells and open 100 cells) per game and this will incur unreasonable transaction fees.
@@ -510,7 +512,7 @@ In this case, the counterparty is marked as cheated, the game transitions to $\g
 \paragraph{Players only play using valid cells}  
 All cells must be within the permitted range $0 <= i < 10$ and $0 <= j < 10$ for any signed message received. 
 
-\paragraph{A ship was not placed  horizontally or vertically}
+\paragraph{A ship was not placed  horizontally or vertically}\label{sec:vertical}
 The contract can check whether an opened ship was placed on the board horizontally or vertically. 
 To verify, it checks that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
 It also checks the ship's length which is established during set up. 
@@ -532,7 +534,7 @@ The counterparty has marked a cell $(i,j)$ as water, but an opened $\hship$ stat
 To prove fraud, the player submits the ship identifier $\hship$, the disputed cell location $i,j$ and the signed opening of the cell $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednothit$.
 The contract can verify if this cell opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
 On the other hand, the counterparty may also mark a cell as a ship location,  but no ships are at that location.
-This proof of fraud is similar as the player submits the disputed cell location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$.
+This proof of fraud is similar as the player submits the disputed cell location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednotwater$. 
 The contract is satisified if it cannot find a ship that claims to be at that location. 
 Both proofs can only be submitted during $\gamefraud$. 
 
@@ -700,10 +702,10 @@ Some applications in this direction include payments, casino games, boardroom el
 
 
 
-
-\section{Acknowledgements}
-
-Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant. We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). We thank Andrew Miller for the proposal for building a battleship game which has turned out to be an excellent example for evaluating state channels. Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
+%
+%\section{Acknowledgements}
+%
+%Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant. We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). We thank Andrew Miller for the proposal for building a battleship game which has turned out to be an excellent example for evaluating state channels. Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
 
 \bibliographystyle{plain}
 \bibliography{bib}
@@ -711,7 +713,96 @@ Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scali
 \newpage 
 \appendix
 
+\section{Security Analysis for Battleship Game}
 
+We provide a brief overview of how the battleship contract and fraud proofs can be used to prevent players cheating throughout the game. 
+This includes how the contract can detect if a board is not well-formed, how it self-enforces a player to attack a valid cell and how to ensure the corresponding cell is honestly opened. 
+Finally we highlight that the contract forfeits any payout if both players are caught cheating. 
+
+\subsection{Detecting an Invalid Board}
+
+The cut-and-choose protocol to set up the game provides each player an opportunity to verify that the opened $n-1$ boards were well-formed before committing to play the game. 
+This provides a probabilistic guarantee that the selected board is well-formed and it is not mandatory. 
+It can be decided that each player places the ships on their boards and only provide a single commitment to the counterparty. 
+Thus the adversary may have an opportunity to construct an invalid board and we highlight in the following how the contract can detect it. 
+
+\paragraph{Overlapping ships}
+The board is invalid if one cell is used for more than one ship. 
+The fraud proof $\battleshiptwoships$ can be used to prove that ships are overlapping, but it requires the ship openings to be revealed. 
+There is no guarantee the counterparty will reveal both ship openings during the game, but the winner is always required to open all ships and thus the loser is provided an opportunity to provide this fraud proof to the contract. 
+
+\paragraph{Ship is not horizontal or vertical}
+All ships must be placed horizontally or vertically on the board, and must be in a straight line. 
+No fraud proof is required as the contract is responsible for checking every ship opening. 
+We outline in Section \ref{sec:vertical} how the contract checks that a ship was placed on a list of valid cells and how it can check if the ship is placed horizontally or vertically. 
+
+\paragraph{Placed ships are not the correct size} 
+The board is invalid if a placed ship does not occupy the correct number of cells on the board. 
+The contract stores a list of sizes for each ship. 
+Each ship in the list is represented as $k,\hship$ and the contract checks that $k$ corresponds to the expected size for the ship at this position in the list. 
+When the opening of $\hship$ is revealed to the contract it will check that the number of cells used by the ship corresponds to $k$. 
+
+\paragraph{Not placing a ship on the board} 
+The board is invalid if a ship is not placed on the board. 
+The contract requries a commitment $\hship$ for every ship before the game can begin.
+If the commitment's pre-image is not well-formed (i.e. it is $\bot$ or the ships location is not occupying valid cells), then the contract will not accept the ship opening.
+Thus after the challenge period $\timechallenge$, the contract will assume the player has not responded with a ship opening.
+On the other hand, if the ship's location is not well-formed then the fraud proofs highlighted above can be used. 
+
+\paragraph{Placing extra ships on the board} 
+The contract only accepts a fixed number of ship commitments and thus the contract self-enforces that only the correct number of ships are placed on the board. 
+
+\subsection{Attacker during Game Play} 
+
+The contract self-enforces the turn-based game play and whose turn it is to attack.
+We consider how the adverary can modify the signed attack message $\sigma^{shot}_{\participant}$. 
+
+\paragraph{Game counter integrity}
+There are two counters $\mathsf{round},\mathsf{move}$, where the former is incremented for every new battleship game in this contract and the latter is incremented for every move within a single game. 
+The contract is responsible for incrementing both counters and checking they are included in the signed attack message $\sigma^{shot}_{\participant}$.
+This is used to prevent replay attacks from previous battleship games (and moves within this game). 
+
+\paragraph{Attacking an invalid cell}
+The player who is attacking must select a single cell to attack and as outlined in Section \ref{sec:vertical} the battleship contract verifies that this cell is valid. 
+
+\paragraph{Attacking same cell twice} 
+In order to reduce storage, the battleship contract does not keep track on the cells attacked every turn. 
+In Section \ref{sec:prooffraud} we present how the counterparty can submit two signed attack messages $\sigma^{shot}_{\participant},\sigma'^{shot}_{\participant}$ to the contract using $\battleshipsamecell$ to demonstrate that the party has tried to attack the same cell twice. 
+
+\paragraph{Not attacking any cell} 
+The player can decide not to attack any cell by not calling $\battleshipattackcell$. 
+If the player does not attack a cell by the challenge time $\timechallenge$, then the contract will assume the player is no longer responding and the counterparty is set as the winner. 
+
+\subsection{Revealer during Game Play} 
+After a cell is attacked, the contract requires the counterparty to open the cell or to declare a ship as sunk with $\sigma^{hit}_{\participant}$ or declare a ship as sunk with  $\sigma^{sunk}_{\participant}$.
+
+\paragraph{Opening a different cell}
+The battleship contract stores the co-ordinates $i,j$ for the attacked cell and it will only accept a cell (or ship) opening if it is for the stored co-ordinate. 
+
+\paragraph{Dishonest about cell opening}
+The counterparty can decide to open the cell as water $(b=0)$ or as a ship location $(b=1)$. 
+If the counterparty is not honest about the cell opening, then the fraud proofs outlined in Section \ref{sec:fraud} (i.e. $\battleshipdeclarednothit$ or $\battleshipdeclarednotwater$) can be used after the cheater has won and revealed the opening of all their ships. 
+This is comparable to playing the game in-person as the counterparty is not forced to reveal all ships until the game's end. 
+We provide an extension in Appendix A that requires each party to provide a commitment for every cell on the board that prevents this issue (i.e. if the board is set up correctly), but it increases the cost to play the game. 
+As well, we highlight in Section \ref{sec:fraud} that the contract keeps tracks on the number of moves played and the game will always finish when this limit has been exceeded. 
+
+\paragraph{Not declaring a ship as sunk}
+If the final ship location is hit, the counterparty may decide not to declare the ship as sunk and instead open the attacked cell as water.  
+In this case, no more cells for the ship can be hit and thus the ship can never be opened during the game play. 
+This requires the players to wait until the game has finished and the cheater is declared as the winner. 
+The loser can provide a proof of fraud as presented in Section \ref{sec:prooffraud} that the ship was not declared as sunk (i.e. $\battleshipdeclarednotsunk)$. 
+The extension presented in Appendix cannot prevent this issue.
+While we have a commitment to every cell on the board, it is not straight-forward to distinguish several cell openings as being a single ship or several adjacent ships. 
+
+\paragraph{Not opening any cell or ship}
+The counterparty can decide not to open any cells (or ships) in response to an attacked cell. If there is no response by the challenge time $\timechallenge$, then the contract will assume the counterparty is no longer responding and the counterparty is set as the winner. 
+
+\subsection{Both players are cheating} 
+
+The battleship contract should not issue any payout if it is discovered that both players have cheated. 
+After the contract has detected cheating by one player, it always transitions to $\gamewinner$ and sets the counterparty as the winner.
+This requires the counterparty to open all ships and in this case there is a fixed challenge period for the cheater to submit a proof of fraud.
+If both players are caught as cheating, then the contract transitions to $\gamefinished$ and forfeits the payout. 
 
 \begin{table}
 	\centering
