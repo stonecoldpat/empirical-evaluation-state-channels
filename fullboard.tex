@@ -1,4 +1,4 @@
-\section{Battleship with Commitments to each Cell} 
+\section{Battleship with Commitments to each Cell} \label{sec:commitmentcell}
 
 In this Appendix, we provide an alternative design for the Battleship smart contract, in which the users commit to each cell of their Battleship board in addition to the commitments of their ships. For each cell, the commitment consists of the hash of a flag indicating whether the cell is occupied by a ship or by water and a random nonce for blinding.
 The advantage of such a design is that cheating in some cases can be detected earlier. However, this comes with the drawback of a larger state and thus a more expensive smart contract execution, which is why our implementation uses the design presented in Section~\ref{sec:battleshipcontract}. Nevertheless, we want to describe the alternative here.
@@ -54,6 +54,6 @@ Finally the \emph{End of game} is again as described in Section~\ref{sec:battles
 
 In addition to the integrity checks presented in Section~\ref{sec:fraud} (\emph{Exceeded maximum number of moves}, \emph{Players only play using valid cells}, \emph{A ship was not placed horizontally or vertically}) that are performed in the same way, the cell commitments also allow checking for \emph{False Cell Reveal}, i.e. the contract ensures that a player cannot claim that a cell contains water if it in fact contains a ship by checking that the reveal matches the cell commitment (as described above). This allows ending a game early if a player tries to cheat by revealing false information about a cell. In our main version without cell commitments this could only be detected and punished at the end of the game.
 
-\subsection{Proof of Fraud}  \label{sec:prooffraud}
+\subsection{Proof of Fraud}  
 
 The fraud proofs for this version of the game are the same as the ones given in Section~\ref{sec:prooffraud} with the exception of \emph{Counterparty was dishonest about a cell opening}, which is not available/required in this version, since this is already checked during gameplay as described above.
