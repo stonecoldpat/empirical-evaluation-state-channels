@@ -427,7 +427,7 @@ The player is provided another turn if their shot was successful.
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
 The loser has a fixed time period to prove if the winner's board was incorrectly set up using $\battleshipfraud$, otherwise either player can call $\battleshipgameover$ after the challenge period to finish the game. 
 
-\subsection{Battleship Contract} 
+\subsection{Battleship Contract}\label{sec:battleshipcontract}
 
 We present each phase of the game, how to establish the contract, the cut-and-choose protocol to begin the game, the turn-based gameplay and finally how the loser is provided an opportunity to prove the winner cheated.
 
@@ -923,5 +923,7 @@ Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scali
 
 	\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}\label{fig:appmodify}
 \end{figure}
+
+\input{fullboard.tex}
 
 \end{document}
