@@ -1,59 +1,59 @@
-\section{Battleship with Commitments to each Cell} \label{sec:commitmentcell}
+\section{Full Board Extension} \label{sec:commitmentcell}
 
-In this Appendix, we provide an alternative design for the Battleship smart contract, in which the users commit to each cell of their Battleship board in addition to the commitments of their ships. For each cell, the commitment consists of the hash of a flag indicating whether the cell is occupied by a ship or by water and a random nonce for blinding.
-The advantage of such a design is that cheating in some cases can be detected earlier. However, this comes with the drawback of a larger state and thus a more expensive smart contract execution, which is why our implementation uses the design presented in Section~\ref{sec:battleshipcontract}. Nevertheless, we want to describe the alternative here.
+We present an extension to our battleship game which requires a commitment for every cell of the board in addition to the ship commitments. 
+For each cell, the commitment consists of a flag $b$ indicating if it is occupied by water $b := 0$ or a ship $b := 1$, and a randon nonce $r$. 
+Assuming the selected board is well-formed, then it can prevent each player lying about their cell opening during the game, but it also increases the game state and the gas requirement for each move in the game. 
 
-\subsection{Battleship Contract} 
 
-We present each phase of the game, how to establish the contract, the cut-and-choose protocol to begin the game, the turn-based gameplay and finally how the loser is provided an opportunity to prove the winner cheated.
+\subsection{Modifications to the Battleship Contract} 
 
-The \emph{Game Phases} and \emph{Contract establishment} are equal to the design of the game in Section~\ref{sec:battleshipcontract}.
+We present how to modify the battleship contract to support the full board extension. 
+This requires modifying how the game is prepared, how a cell opening during the game play is verified by the contract and how the full board is opened at the game's end. 
 
-\paragraph{Prepare boards} Both parties participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$. 
-A ship hash is denoted as $\hship := \hash(i,j,i\pm,j\pm,r, \mathsf{round}, \participant, \appcontract)$ where $i,j$ represents its initial position, $i\pm,j\pm$ represents its final position. 
-All cells between  $i,j$ and $i\pm,j\pm$ should be marked as ship locations, i.e. for each of these cells, each player $\participant$ creates a commitment $\hcell := \hash(1,r, \mathsf{round}, \participant, \appcontract)$ while for all other (i.e. water) cells, the player creates a commitment $\hcell := \hash(0,r, \mathsf{round}, \participant, \appcontract)$, where $x,y$ are the coordinates of the cell, $r$ is a fresh random nonce. The cell commitments are ordered deterministically by their indices.
-Each party computes and signs $N$ lists of ships and cell commitments: 
+\paragraph{Prepare boards}
+%Both parties still participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$ and compute $n$ lists of ship hashes. 
+Our extension requires each party to compute an entire board to accompany a list of ships.   
+The board is a list of cell hashes such that $\hcell_{1,1},...,\hcell_{n,n}$ where $n,n$ is the final grid co-ordinate. 
+A cell hash is $\hash(b, r, \mathsf{round}, \participant, \appcontract)$, where $b$ is a flag indicating if it is occupied by water $b := 0$ or a ship location $b := 1$, and $r$ is the nonce. 
+The party signs the list of ships and the board cells: 
 
 \begin{displaymath}
- \Sigma_{1}^{N} := \sign_{\participant}(((k_{i,1},\hship_{i,1}),...,(k_{i,n},\hship_{i,n})), (\hcell_{i,1},...,\hcell_{i,m}), \participant, \mathsf{round}, \appcontract)
+ \sigma := \sign_{\participant}(((k_{1},\hship_{1}),...,(k_{n},\hship_{n})), (\hcell_{1,1},...,\hcell_{n,n}), \participant, \mathsf{round}, \appcontract)
 \end{displaymath}
  
-Each ship in a list is denoted as $(k,\hship)$, where $k$ is the length for that particular ship.  
-This is sent to the counterparty who is responsible for selecting one list and reserving it for the game by submitting it alongside the corresponding signature using $\battleshipselectboard$. 
-The party must open the remaining $N-1$ list of ships and cell commitments to the counterparty who can check their validity. 
-If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ which is an explicit acknowledgement that each party has reviewed all opened list of ships.
-If the counter-party does not open any ship lists, then the party can signal their desire to quit  using $\battleshipgameover$.
-Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
+The contract stores every cell hash in the contract for future use. 
+Each party is responsible for reserving the list of ship and its the board on behalf of their counterparty using  $\battleshipselectboard$. 
+All remaining $N-1$ list of ships and their corresponding boards must be opened and reviewed by the counterparty.  
+If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ or they can quit using $\battleshipgameover$.
+The above can be used as part of the cut-and-choose protocol proposed for the original contract. 
+%Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
 
 \paragraph{Game-play}
-The contract maintains a counter $\mathsf{move}$ which is incremented after each player's turn. 
-In the $\gameattack$ phase, the player challenges the counterparty to open a cell $i,j$ by signing: 
+Our extension requires modifying how a player responds to an attacked cell:
 
 \begin{center}
-	$\sigma^{shot}_{\participant} := \sign_{\participant}(i,j, \mathsf{move}, \mathsf{round},\appcontract)$ \\
+	$\sigma^{hit}_{\participant} := \sign_{\participant}(i,j,b, r_{cell},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r_{cell}, r_{ship},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
 \end{center}
 
-This message is submitted using $\battleshipattackcell$.
-It transitions the game phase to $\gamereveal$ and sets a fixed time period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
-The counterparty signs one of two messages depending on whether a ship was sunk:
+Both the hit and sunk messages include the nonce $r_{cell}$.
+This lets the contract open $\hcell_{i,j}$ and confirm that the supplied $b$ matches the commitment during the setup.
+The opening can be stored by the contract, otherwise each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} for future fraud proofs as presented in Section \ref{sec:prooffraud}.
 
-\begin{center}
-	$\sigma^{hit}_{\participant} := \sign_{\participant}(i,j,b,r_{c},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r_{c}, r_{s},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
-\end{center}
 
-The counterparty is responsible for submitting either signed message. 
-The first message declares if the cell is marked with water $b=0$ or a ship location $b=1$.
-It is submitted using $\battleshiprevealcell$.
-The second message declares the shot sank a ship and requires the counterparty to open the corresponding ship commitment $\hship$ to $\battleshipsinking$.  The battleship contract then checks whether the commitment to the cell corresponds to what the counterparty revealed, i.e. if the commitment is a commitment to $b$ (where $b=1$ in case $\sigma^{sunk}_{\participant}$ is sent), given the nonce $r_{c}$. If the ship is sunk, the contract also verifies that the revealed locations corresponds to one of the ship commitments given nonce $r_{s}$.
-Each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} as it can later be used to prove fraud which we discuss in Section \ref{sec:prooffraud}.
-The game transitions to $\gamewinner$ if one player has declared all their ships sunk. 
+\subsection{Changes to Fraud Detection}
 
-Finally the \emph{End of game} is again as described in Section~\ref{sec:battleshipcontract}. 
+We present the additional fraud detection that is performed by the contract and the player due to the extension. 
 
-\subsection{Checking for Fraud}
+\paragraph{Integrity checks} 
 
-In addition to the integrity checks presented in Section~\ref{sec:fraud} (\emph{Exceeded maximum number of moves}, \emph{Players only play using valid cells}, \emph{A ship was not placed horizontally or vertically}) that are performed in the same way, the cell commitments also allow checking for \emph{False Cell Reveal}, i.e. the contract ensures that a player cannot claim that a cell contains water if it in fact contains a ship by checking that the reveal matches the cell commitment (as described above). This allows ending a game early if a player tries to cheat by revealing false information about a cell. In our main version without cell commitments this could only be detected and punished at the end of the game.
+As presented in Section~\ref{sec:fraud} the contract checks all signed messages received to self-enforce the game's correct execution. 
+Our extension requires the contract to check every cell opening with the stored cell hash $\hcell$. 
 
-\subsection{Proof of Fraud}  
 
-The fraud proofs for this version of the game are the same as the ones given in Section~\ref{sec:prooffraud} with the exception of \emph{Counterparty was dishonest about a cell opening}, which is not available/required in this version, since this is already checked during gameplay as described above.
+%Our extension 
+%In addition to the integrity checks presented in Section~\ref{sec:fraud} (\emph{Exceeded maximum number of moves}, \emph{Players only play using valid cells}, \emph{A ship was not placed horizontally or vertically}) that are performed in the same way, the cell commitments also allow checking for \emph{False Cell Reveal}, i.e. the contract ensures that a player cannot claim that a cell contains water if it in fact contains a ship by checking that the reveal matches the cell commitment (as described above). This allows ending a game early if a player tries to cheat by revealing false information about a cell. In our main version without cell commitments this could only be detected and punished at the end of the game.
+
+\paragraph{Proof of fraud} 
+If we assume the board is well-formed upon set up, then the party cannot be dishonest about their cell opening during the game. 
+The fraud proofs $\battleshipdeclarednothit$ or $\battleshipdeclarednotwater$ are still required as the board used in the game can be invalid and the contract must verify that the cell opening does not correspond to a ship opening. 
+There is no change to the fraud proof except that the cell nonces are submitted to the contract alongside the signed cell openings. 
