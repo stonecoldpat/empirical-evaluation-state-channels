@@ -137,7 +137,7 @@
 
 	\title{An empirical evaluation of state channels as a scaling solution for cryptocurrencies}
 	
-%	
+	
 %	\author{Patrick McCorry\inst{1}, Chris Buckland\inst{1},
 %		Surya Bakshi\inst{2}, Karl W\"ust\inst{3}, and Andrew Miller\inst{2} }
 %	
@@ -161,7 +161,7 @@
 		 To evaluate state channels as a scaling solution, we provide a proof of concept implementation for a two-player battleship game.
 		 Typically it is considered unreasonable to play via the blockchain which we confirm as a single game costs between \$16.27 and \$24.05, but it is perceived as an ideal application for a state channel. 
 		 We explore the minimal modifications required to deploy the battleship game as a state channel and propose a new state channel construction which combines features from existing constructions. 
-		 While in the optimistic case we demonstrate the battleship game can be played efficiently in a state channel, the requirement for all parties to collectively authorise new transactions in the state channel introduces new economic attack vectors that if exploited will render the game as unreasonable to play. 
+		 While in the optimistic case we demonstrate the battleship game can be played efficiently in a state channel, the requirement for all parties to collectively authorise new transactions in the state channel introduces new economic and time-based attacks that if exploited renders the game as unreasonable to play. 
 	\end{abstract} 
 
 \section{Introduction}
@@ -179,7 +179,7 @@ New blockchain protocols can strictly increase the network's throughput \cite{so
 However there is a tradeoff between increasing the network's transaction throughput to support a larger userbase in terms of affordable fees, and the number of validators with the necessary computational resources to validate every transaction \cite{mccorry2017atomically,gervais2016security,croman2016scaling}.
 
 An alternative scaling approach consists of off-chain solutions to reduce the number of transactions processed by the blockchain.
-It lets a group of parties set up a channel by depositing coins in the blockchain for use within an off-chain application.
+It lets a group of parties deposit coins in the blockchain for use within an off-chain application.
 Afterwards all parties can transact amongst themselves without interacting with the global network and the deposited coins are re-distributed depending on the application's outcome. 
 The two proposals for this approach include an alternative blockchain (i.e. a sidechain) or a channel. 
 A sidechain has block producers (i.e. miners or a single operator) for deciding the order of transactions and users who publish transactions for inclusion. 
@@ -200,7 +200,7 @@ Channels are also self-enforcing as each party is protected against a full collu
 The Ethereum Foundation has donated over \$2.7m \cite{efscaling1,efscaling2,efscaling3}  and the Ethereum Community Fund has donated \$275k \cite{ecfscaling} to further explore state channels as a scaling solution.
 As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO} and FunFair at \$26m \cite{funfair}.
 
-In this paper, we present an empirical evaluation for a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
+In this paper, we present an empirical evaluation in the form of a case study for a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
 To aid this evaluation we have designed a two-player battleship game as a smart contract.
 An application like battleship is not typically considered viable to execute via the blockchain due to the quantity of transactions required and in our experiment we confirm this perception as the financial cost is between \$16.27 and \$24.05. 
 However, state channels are perceived as a potential scaling solution to allow applications like battleship to be executed over the blockchain. 
@@ -254,7 +254,7 @@ The sender submits a deposit to open the channel and this deposit can be redeeme
 Either the channel's expiry time is reached and the sender is refunded their coins, or both parties authorise the payment. 
 Every payment signed by the sender increments the coins owed to the receiver and decrements the coins owed to the sender.  
 The receiver must close the channel before its expiry time by signing and publishing the payment that pays them the most coins. 
-To support bi-directional payments, Decker proposed \textit{replace by time} lock which decrements the channel's expiry time whenever the payment direction changes \cite{decker2015fast}.
+To support bi-directional payments, Decker proposed \textit{replace by time lock} which decrements the channel's expiry time whenever the payment direction changes \cite{decker2015fast}.
 %This lets the receiver to publish the channel's new balance after receiving coins from the sender before any of their previous payments. 
 %Otherwise, the sender could publish a  payment are eligible to be broadcast. 
 However both state replacement techniques require an expiry time which restricts the total number of transactions that can occur. 
@@ -291,11 +291,11 @@ Next the party can trigger the dispute process and the blockchain provides a fix
 After the dispute period the smart contract executes the submitted commands and transitions to the new state (and increments its version).  
 Any party can cancel the dispute during this fixed time period by submitting an authorised state with a a more recent version. 
 Pisa modified this state channel construction such that a commitment (i.e. hash) of the new state is signed instead of the plaintext state. 
-As a result, there can be an independent smart contract for the state channel that is application-agnostic. 
+As a result, it proposed the first application-agnostic state channel smart contract. 
 
 \paragraph{Multiple-application state channels} \label{sec:multiapp}
 Perun and Counterfactual channel constructions are designed for two parties and have extended the concept of a state channel in two ways \cite{dziembowski2017perun,coleman2018counterfactual} 
-First, they proposed the state within a channel can be organised in a hierarchy to support multiple-applications and an on-chain dispute for one application that does not impact other applications in the channel. 
+First, they proposed the state within a channel can be organised in a hierarchy to support multiple-applications and the dispute process for one application does not impact other applications in the channel. 
 Second, they proposed virtual channels which allow two parties without a direct and established channel to connect with each other using a network of channels. 
 This requires all channels along the route to lock up collateral while the virtual channel is open. 
 Unlike Sprites, both constructions proposed the dispute process should be used to determine the final state and not to self-enforce a state transition directly. 
@@ -623,8 +623,7 @@ The cost for each fraud proof is presented in Steps 11-14 and only one fraud pro
 To verify and authorise states off-chain, each player runs a local blockchain with a copy of the Ethereum Virtual Machine (EVM), instantiates the battleship contract and the current state of the game is set. 
 To play a move, each player sends the counterparty a signed transaction that can be executed in their local blockchain. 
 Both players execute the transaction, fetch the full state from the battleship contract, hash it, and exchange signatures for the new state hash. 
-*How is chris handing the time? The state hash will be different if we rely on t now. 
-Every move requires approximately 2 seconds over a network. 
+*Waiting on statistics from Chris for time to propose a transition and time to verify a transition. 
 
 
 \section{Discussion and Future Work} 
@@ -662,19 +661,19 @@ Let's consider the worst-case where both players set up the game with an expecta
 Both players must finish the game which costs approximately on average \$16.27 to \$24.05 and the latency incurred by playing the game via the blockchain requires a short challenge period (i.e. 5 minutes) to permit each transaction to be accepted into the blockchain. 
 As a result it may take several hours to complete a game and it is likely some players will simply forfeit their deposit (and bet) to quit the game early. 
 Finally if the network's transaction fee spikes due to blockchain congestion as it did on the 6th January 2018 to 9,578,857,458 wei\footnote{The blockchain congestion was caused by a popular game called Cryptokitties.}  \cite{etherscan}, then resolving the dispute costs \$57.58 and the game play is between \$599 and \$886.  %
-Thus state channels must strictly be viewed as an optimistic scaling solution only if all parties are trusted to co-operate.
-The requirement to co-operate introduces a time and money cost that must be considered when designing the application.
-Parties will only resolve disputes if the payoff is greater than the dispute process cost and if it can be completed within a reasonable time-frame. 
+Thus state channels must strictly be viewed as an optimistic scaling solution only if all parties are trusted to co-operate. 
+It introduces a time and money cost which implies that applications within a state channels are ultimately restricted by the underlying blockchain's throughput. 
+%This must be considered when designing the application as parties will only resolve disputes to complete the application if its financially affordable and it can be completed within a reasonable time-frame. 
 
 
 %\paragraph{Multi-application state channels} 
 %As mentioned in Section \ref{sec:multiapp}, Perun and Counterfactual propose state channels that support a hierarchy of applications which can be executed concurrently. 
-%This requires the state channel contract to be instantiated on the blockchain in advance and to hold the funds of all parties.  
-%If there is an issue in a single application, then the dispute process can be used to instantiate the application, transfer coins to it and permit its execution to complete via the blockchain. 
-%We highlight this can permit transitions between applications as all parties can agree to atomically destory one application and instantiate another application.
-%This can be leveraged to support designing modular smart contracts where each module is executed one after another (i.e. each level in a game is a new application contract).  
-%While we have left it as future work, our state channel construction is application-agnostic by design and can be adopted to support instantiating an application after the dispute process has concluded. 
-%Although our empirical evaluation highlights that deploying the application as part of the dispute process may significantly increase the cost (i.e. an extra \$10.36 for battleship) and it is advisable to reduce this cost by instantiating smart contracts using existing code on the blockchain. 
+%The state channel contract is instantiated on the blockchain in advance to hold the funds of all parties and applications are created/destroyed within the channel (i.e. the application smart contract is not deployed to the blockchain in advance).
+%If there is an issue in a single application, then the dispute process can be used to instantiate the application smart contract, set the latest state and permit its execution to continuei via the blockchain. 
+%%We highlight this can permit transitions between applications as all parties can agree to atomically destory one application and instantiate another application.
+%%This can be leveraged to support designing modular smart contracts where each module is executed one after another (i.e. each level in a game is a new application contract).  
+%Our empirical evaluation highlights that deploying the application as part of the dispute process can significantly increase the cost (i.e. an extra \$10.36 for battleship) and it is advisable to reduce this cost by instantiating smart contracts using existing code on the blockchain.\footnote{One approach is to use the opcode $\mathsf{DELEGATECALL}$ in Ethereum}.
+%While we have left it as future work, our state channel construction can be modified to support holding the funds of all parties and disputing individual applications within the state channel. 
 
 %We envision this can be leveraged to design modular applications which in the case of battleship may permit  only the satisified fraud proof for the game to be instantiated after the dispute process. 
 
@@ -737,15 +736,14 @@ Some applications include payments, casino games, boardroom elections and auctio
 
 
 
-
+%
 %\section{Acknowledgements}
 %
-%Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant. We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
+%Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant and Ethereum Community Fund grant.
+%We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
 
 \bibliographystyle{plain}
 \bibliography{bib}
-
-\newpage 
 \appendix
 
 
@@ -773,7 +771,8 @@ Some applications include payments, casino games, boardroom elections and auctio
 		12 & Fraud: Declared not hit ($\battleshipdeclarednothit$) & 284,261 & 0.23 \\
 		13 & Fraud: Declared not sunk ($\battleshipdeclarednotsunk$) & 312,471 & 0.24 \\
 		13 & Fraud: Attack same cell ($\battleshipsamecell$) & 100,881 & 0.08 \\
-		14 & Challenge period expired ($\battleshipchallengeexpired$) &75,349 & 0.06 \\
+		14 & Fraud: Declared not water ($\battleshipdeclarednotwater$) & x & x \\
+		15 & Challenge period expired ($\battleshipchallengeexpired$) &75,349 & 0.06 \\
 		\hline
 		\multicolumn{4}{c}{State Channel} \\
 		\hline
