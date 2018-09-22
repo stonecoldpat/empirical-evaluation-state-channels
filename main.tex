@@ -467,7 +467,7 @@ The contract is established with the address of both players $\participant_{1},\
 Both parties can deposit coins during $\gamesetup$ phase before placing their bets.
 
 \paragraph{Prepare list of ships} Both parties participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$. 
-A ship hash is denoted as $\hship := \hash(i,j,i\pm,j\pm,r, \mathsf{round}, \participant, \appcontract)$ where $i,j$ represents its starting co-ordinate, $i\pm,j\pm$ represents its finishing co-ordinate. 
+A ship hash is denoted as $\hship := \hash(x,y,x\pm,y\pm,r, \mathsf{round}, \participant, \appcontract)$ where $x,y$ represents its starting co-ordinate, $x\pm,y\pm$ represents its finishing co-ordinate. 
 Each party $\participant$ computes and signs $N$ list of ships: 
 
 \begin{center}
@@ -484,10 +484,10 @@ Finally the game $\mathsf{round}$ is incremented regardless if it continues or n
 \paragraph{Game-play} \label{sec:gameplayships}
 %The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player has a turn at shooting the counterparty's ships. 
 The contract maintains a counter $\mathsf{move}$ which is incremented after each player's turn. 
-In the $\gameattack$ phase, the player $\participant$ challenges the counterparty to open a cell $i,j$ by signing: 
+In the $\gameattack$ phase, the player $\participant$ challenges the counterparty to open a cell $x,y$ by signing: 
 
 \begin{center}
-	$\sigma^{shot}_{\participant} := \sign_{\participant}(i,j, \mathsf{move}, \mathsf{round},\appcontract)$ \\
+	$\sigma^{shot}_{\participant} := \sign_{\participant}(x,y, \mathsf{move}, \mathsf{round},\appcontract)$ \\
 \end{center}
 
 This message is submitted using $\battleshipattackcell$.
@@ -495,7 +495,7 @@ It transitions the game phase to $\gamereveal$ and sets a fixed challenge period
 The counterparty signs one of two messages depending on whether a ship was sunk:
 
 \begin{center}
-	$\sigma^{hit}_{\participant} := \sign_{\participant}(i,j,b,\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r,\hship,\mathsf{move}, \mathsf{round},\appcontract)$
+	$\sigma^{hit}_{\participant} := \sign_{\participant}(x,y,b,\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(x,y,x\pm,y\pm,r,\hship,\mathsf{move}, \mathsf{round},\appcontract)$
 \end{center}
 
 The counterparty is responsible for submitting either signed message. 
@@ -527,11 +527,11 @@ If $\mathsf{hits}_{i}$ exceeds the number of ship positions on the board or $\ma
 In this case, the counterparty is marked as cheated, the game transitions to $\gamewinner$ and the winner must open their ships.  
 
 \paragraph{Players only play using valid cells}  
-All cells must be within the permitted range $0 <= i < 10$ and $0 <= j < 10$ for any signed message received. 
+All cells must be within the permitted range $0 <= x < 10$ and $0 <= y < 10$ for any signed message received. 
 
 \paragraph{A ship was not placed  horizontally or vertically}\label{sec:vertical}
 The contract can check whether an opened ship was placed on the board horizontally or vertically. 
-To verify, it checks that every location for a ship either has the same $i$ or $j$ co-ordinate, and that $i$ or $j$ is incremented (or decremented) strictly by one for every ship location. 
+To verify, it checks that every location for a ship either has the same $x$ or $y$ co-ordinate, and that $x$ or $y$ is incremented (or decremented) strictly by one for every ship location. 
 It also checks the ship's length which is established during set up. 
 
 \subsection{Proof of Fraud}  \label{sec:prooffraud}
@@ -541,17 +541,17 @@ In the following we present the fraud proofs that can be verified by the contrac
 
 \paragraph{Player has shot the same cell twice} 
 The contract cannot independently verify if a player has shot the same cell twice as it does not store the opening of cells.
-Instead the counterparty can submit the two signed shots $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the cell $i,j$ using $\battleshipsamecell$. 
+Instead the counterparty can submit the two signed shots $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the cell $x,y$ using $\battleshipsamecell$. 
 The contract verifies if the signatures are valid (and from the same party), both shots are for the same cell, and $\mathsf{move}\neq\mathsf{move}'$. 
 This proof of fraud can be submitted to the contract at any point during the game. 
 
 \paragraph{Counterparty was dishonest about a cell opening}
-The counterparty has marked a cell $(i,j)$ as water, but an opened $\hship$ states it is a ship location. 
+The counterparty has marked a cell $(x,y)$ as water, but an opened $\hship$ states it is a ship location. 
 %As previously mentioned, the contract only stores ship openings and the player is required to store every signed cell opening. 
-To prove fraud, the player submits the ship identifier $\hship$, the disputed cell $i,j$ and the signed opening of the cell $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednothit$.
-The contract can verify if this cell opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $i,j$.   
+To prove fraud, the player submits the ship identifier $\hship$, the disputed cell $x,y$ and the signed opening of the cell $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednothit$.
+The contract can verify if this cell opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $x,y$.   
 On the other hand, the counterparty may also mark a cell as a ship location,  but no ships are at that location.
-This proof of fraud is similar as the player submits the disputed cell location $i,j$ alongside its signed opening $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednotwater$. 
+This proof of fraud is similar as the player submits the disputed cell location $x,y$ alongside its signed opening $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednotwater$. 
 The contract is satisified if it cannot find a ship at that location. 
 Both proofs can only be submitted during $\gamefraud$. 
 
@@ -564,8 +564,8 @@ Both proofs can only be submitted during $\gamefraud$.
 
 \paragraph{Two ships claim to be at  the same cell} 
 The cheater has used the same cell for two or more ships.  
-The index for both ships and the cell $i,j$ must be submitted to the contract using $\battleshiptwoships$. 
-The contract looks up the co-ordinates for each ship and checks if it claims to be at the same location $i.j$.
+The index for both ships and the cell $x,y$ must be submitted to the contract using $\battleshiptwoships$. 
+The contract looks up the co-ordinates for each ship and checks if it claims to be at the same location $x, y$.
 This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
 
 \paragraph{Ship was not declared as sunk}
@@ -588,7 +588,7 @@ This tracks whether a state channel was instantiated,  the lock/unlock functiona
 The application contract stores the dispute timer and a counter $\mathsf{instance}$ to track the number of times the state channel is turned on. 
 It sets $\instantiated := \instantiatedno$ and both players $\participant_{1},\participant_{2}$ for use by the state channel.
 The pre-condition $\textbf{discard if}$ $ \instantiated  = \instantiatedyes$ is included in every function except $\battleshipunlock$. 
-If the pre-condition is satisified, then all future transactions that interact with this function will fail.
+If the pre-condition is satisfied, then all future transactions that interact with this function will fail.
 This disables all functionality within the application contract if it is locked and the state channel is turned on. 
 
 \paragraph{Lock and unlock functions} 
@@ -863,7 +863,7 @@ After the challenge time $\timechallenge$ has expired, the contract assumes the 
 After a cell is attacked, the contract requires the counterparty to open the cell with $\sigma^{hit}_{\participant}$ or declare a ship as sunk with  $\sigma^{sunk}_{\participant}$.
 
 \paragraph{Opening a different cell}
-The battleship contract stores the co-ordinates $i,j$ for the attacked cell and it will only accept a cell (or ship) opening if it is for the stored co-ordinate. 
+The battleship contract stores the co-ordinates $x,y$ for the attacked cell and it will only accept a cell (or ship) opening if it is for the stored co-ordinate. 
 
 \paragraph{Dishonest about cell opening}
 %The counterparty can lie about the cell opening (i.e. if it is water $(b=0)$ or as a ship location $(b=1)$).  

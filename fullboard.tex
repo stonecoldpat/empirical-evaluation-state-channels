@@ -32,11 +32,11 @@ The above can be used as part of the cut-and-choose protocol proposed for the or
 Our extension requires modifying how a player responds to an attacked cell:
 
 \begin{center}
-	$\sigma^{hit}_{\participant} := \sign_{\participant}(i,j,b, r_{cell},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(i,j,i\pm,j\pm,r_{cell}, r_{ship},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
+	$\sigma^{hit}_{\participant} := \sign_{\participant}(x,y,b, r_{cell},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(x,y,x\pm,y\pm,r_{cell}, r_{ship},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
 \end{center}
 
 Both the hit and sunk messages include the nonce $r_{cell}$.
-This lets the contract open $\hcell_{i,j}$ and confirm that the supplied $b$ matches the commitment during the setup.
+This lets the contract open $\hcell_{x,y}$ and confirm that the supplied $b$ matches the commitment during the setup.
 The opening can be stored by the contract, otherwise each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} for future fraud proofs as presented in Section \ref{sec:prooffraud}.
 
 
