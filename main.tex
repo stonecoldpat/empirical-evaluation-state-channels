@@ -601,10 +601,10 @@ This re-enables all functionality in the battleship contract.
 
 \paragraph{Off-chain contract and identifying side-effects} \label{sec:timers}
 
-Each player deploys an off-chain version of the battleship contract to a local blockchain in order to replicate the execution of all state transitions. 
-%A new pre-condition $\textbf{discard if}$ $ \mathsf{offchain}  = \instantiatedyes$ can be included in the battleship contract for every function that includes a side-effect (i.e. interacts with other contracts or accounts).
-A side-effect is when the state change within the off-chain contract relies on a variables within the contract environment or interaction with other contracts.
-We discuss further in Section \ref{sec:sideffectshandle} how our experiment handles changes to the contract's address $\mathsf{address(this)}$, the smart contract's clock $\mathsf{block.timestamp}$ or $\mathsf{block.blockhash}$ and the transaction sender $\mathsf{msg.sender}$. 
+Our experiment requires each player to deploy an off-chain version of the battleship contract to a local blockchain to replicate (and verify) the execution of all state transitions. 
+We highlight a side-effect is when a state update relies on an environmental variable or interaction with another contract which may not persist when the contract is re-activated on the blockchain. 
+Some examples in Ethereum include the environment variables $\mathsf{msg}, \mathsf{block}, \mathsf{tx}$, and transfering coins to another contract. 
+We discuss further in Section \ref{sec:sideffectshandle} how our experiment handles computing the contract's address $\mathsf{address(this)}$, the global clock $\mathsf{block.timestamp}$ or $\mathsf{block.blockhash}$ and the transaction sender $\mathsf{msg.sender}$. 
 All other functions with side-effects should be deleted or disabled in the off-chain contract which for battleship includes the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$. 
 The off-chain contract can also include a new $\battleshipgetstate$ to return the full state and the corresponding $\hstate,\monotoniccounter$. 
 
@@ -720,8 +720,8 @@ This highlights that race conditions in the underlying application are reflected
 
 \paragraph{Applicable Applications} 
 The lack of fault tolerance in a state channel implies that it is useful for a small set of parties who can remain online throughout the entire execution of an application. 
-Our example demonstrates that applications like battleship may not be compatible with state channels as the parties run a risk of executing a significant number of transactions via the blockchain to complete the application. 
-Instead, state channels appear to be useful for applications  with a small number of rounds and all parties need to repeat the application's execution more than once. 
+Our experiment demonstrates that applications like battleship may not be compatible with state channels as there is a risk that each party will execute a significant (and unreasonable) number of transactions via the blockchain to complete the application.
+Instead, state channels appear useful for applications  with a small number of rounds and all parties need to repeat the application's execution more than once. 
 Some applications include payments, casino games, boardroom elections and auctions.
 
 
