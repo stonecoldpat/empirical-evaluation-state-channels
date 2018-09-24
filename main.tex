@@ -1,4 +1,4 @@
-\PassOptionsToPackage{usenames}{xcolor}
+ \PassOptionsToPackage{usenames}{xcolor}
 \PassOptionsToPackage{dvipsnames}{xcolor}
 \documentclass{llncs}
 \usepackage[utf8]{inputenc}
@@ -599,12 +599,13 @@ The battleship contract verifies if it corresponds to the final state hash accep
 If successful, the full state is stored and the flag $\instantiated$ is set as $\instantiatedno$.
 This re-enables all functionality in the battleship contract. 
 
-\paragraph{Off-chain contract and handling side-effects} \label{sec:timers}
+\paragraph{Off-chain contract and identifying side-effects} \label{sec:timers}
 
 Each player deploys an off-chain version of the battleship contract to a local blockchain in order to replicate the execution of all state transitions. 
 %A new pre-condition $\textbf{discard if}$ $ \mathsf{offchain}  = \instantiatedyes$ can be included in the battleship contract for every function that includes a side-effect (i.e. interacts with other contracts or accounts).
-All functions with side-effects\footnote{A side-effect is when the state change relies on variables within the contract environment or interaction with other contracts. } should either be deleted or disabled in the off-chain contract as there is no guarantee the state updates will persist when the channel is closed. 
-In the case of our battleship contract the transactions with side-effects include the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$. 
+A side-effect is when the state change within the off-chain contract relies on a variables within the contract environment or interaction with other contracts.
+We discuss further in Section \ref{sec:sideffectshandle} how our experiment handles changes to the contract's address $\mathsf{address(this)}$, the smart contract's clock $\mathsf{block.timestamp}$ or $\mathsf{block.blockhash}$ and the transaction sender $\mathsf{msg.sender}$. 
+All other functions with side-effects should be deleted or disabled in the off-chain contract which for battleship includes the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$. 
 The off-chain contract can also include a new $\battleshipgetstate$ to return the full state and the corresponding $\hstate,\monotoniccounter$. 
 
 \section{Proof  of Concept Implementation}
@@ -620,10 +621,10 @@ This worst-case costs \$24.05 (approx 30 million gas) to finish the game.
 Locking the battleship game, creating the state channel, performing the dispute process costs and unlocking the battleship game costs \$1.56 (approx 1 million gas). 
 The cost for each fraud proof is presented in Steps 11-14 and only one fraud proof is required per game to prove the counterparty has cheated. 
 
-To verify and authorise states off-chain, each player runs a local blockchain with a copy of the Ethereum Virtual Machine (EVM), instantiates the battleship contract and the current state of the game is set. 
-To play a move, each player sends the counterparty a signed transaction that can be executed in their local blockchain. 
-Both players execute the transaction, fetch the full state from the battleship contract, hash it, and exchange signatures for the new state hash. 
-*Waiting on statistics from Chris for time to propose a transition and time to verify a transition. 
+In terms of authorising new states within the channel, one party is responsible for proposing the state transition and the counterparty is responsible for verifying the state transition before both parties authorise the new state. 
+We executed the attack phase 100 times to evaluate the time it takes to authorise a new state in the channel. 
+After the party has chosen a cell to attack, it takes approximately 300.5 ms to compute the signed attack message, to create and execute the transaction in their local blockchain and to sign the final state hash. 
+The counterparty takes approximately 296.75 ms to verify the signed message, execute the transaction in their local blockchain, verify and sign the final state hash and finally send the signed new state to the party. 
 
 
 \section{Discussion and Future Work} 
@@ -677,11 +678,17 @@ It introduces a time and money cost which implies that applications within a sta
 
 %We envision this can be leveraged to design modular applications which in the case of battleship may permit  only the satisified fraud proof for the game to be instantiated after the dispute process. 
 
-\paragraph{Self-enforcing  timers} 
-Handling time within the state channel requires special consideration as both parties no longer share a global clock.
-We propose two approaches for overcoming this issue. 
+\paragraph{Handling side-effects and self-enforcing  timers} \label{sec:sideffectshandle}
+%All signed messages for the game include the contract address $\appcontract$ which is verified within the contract $\mathsf{address(this)}$.
+Without modification to the local blockchain instance, both the off-chain and on-chain battleship contracts have different addresses.
+This poses problems for our fraud proofs if a message is signed for the off-chain contract address as it will not be valid when the on-chain contract is re-activated.
+Our proof of concept signs two messages for the on-chain and off-chain contract, however there is an upcoming new consensus rule \cite{eip1014} to deterministically derives the contract's address to support deploying an off-chain contract with the same address. 
+The battleship contract relies on $\mathsf{msg.sender}$ to authenticate the immediate caller as the transaction signer and this requires the party to sign a transaction for execution in the counterparty's local blockchain. 
+We highlight that Ethereum transactions have a $\mathsf{chain\_id}$ to prevent the transaction being replayed to another blockchain.
+The counterparty can verify the transaction has set  $\mathsf{chain\_id}$  and it is destined for the off-chain contract address before executing it in their local blockchain. 
+Finally both parties no longer share a global clock and we propose two approaches to handle time-dependent events. 
 First, the time $\timechallenge$ can be set by the player proposing a new state and the counterparty must verify the proposed time is within a range (i.e. a few minutes, or $n$ blocks) before mutually authorising it.
-This must take into account the time it takes to turn off the channel via the dispute process  $\timedispute$ and additional time to initiate/settle the dispute $\timerextra$ such that $\timerchallenge + \timerdispute + \timerextra$. 
+It must take into account the time required to turn off the channel via the dispte process and the time to initiate/settle the dispute such that $\timechallenge := \timenow + \timerchallenge + \timerdispute + \timerextra$. 
 An alternative approach is to set $\timechallenge$ as $\bot$ for all updates within the state channel. 
 Instead the time $\timechallenge$ is set by battleship contract when it is re-activated in the blockchain using $\battleshipunlock$ and if the game is in a relevant phase.
 
@@ -704,19 +711,17 @@ The gameplay for battleship is turn-based and it is clear which player is respon
 Setting up the game using $\battleshipcommit$ or $\battleshipbegin$ has no order and both players may concurrently propose a state transition for the same version. 
 In our case, both players can use a deterministic rule to resolve the race condition (i.e. $\participant_{1}$ proposed state has priority) as the order of execution has no impact on the game's outcome. 
 This highlights that race conditions in the underlying application are reflected in the state channel and can result in the state channel being turned off if the order of execution has an impact on the application's outcome. 
-
-\paragraph{Limitations due to the EVM} 
-The mapping data structure in Solidity for the Ethereum contract environment poses problems for the state channel as it cannot simply delete all key-value pairs.
-If a key-value pair is set to $\bot$ within the state channel, then this over-write must also occur when the full state is sent to the contract. 
-Otherwise, the key-value pair will persist in the application contract after the state channel is turned off.
-For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
+%
+%\paragraph{Limitations due to the EVM} 
+%The mapping data structure in Solidity for the Ethereum contract environment poses problems for the state channel as it cannot simply delete all key-value pairs.
+%If a key-value pair is set to $\bot$ within the state channel, then this over-write must also occur when the full state is sent to the contract. 
+%Otherwise, the key-value pair will persist in the application contract after the state channel is turned off.
+%For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
 
 \paragraph{Applicable Applications} 
-A state channel requires all parties to remain on-line to authorise every new state of the application.
-This lack of fault tolerance implies that a state channel is only suitable for applications that involve a small set of parties who can remain online throughout its entire execution.
-Battleship was chosen for our experiment as it is considered unreasonable to execute on the blockchain, but it is preceived as an ideal application for a state channel.
-However our experiment demonstrates that state channels may not be compatible for applications like battleship as the parties run a risk of performing a significant number of actions via the blockchain to complete the application. 
-Instead, state channels appear useful for applications with a small number of rounds and all parties need to repeat the application's execution more than once. 
+The lack of fault tolerance in a state channel implies that it is useful for a small set of parties who can remain online throughout the entire execution of an application. 
+Our example demonstrates that applications like battleship may not be compatible with state channels as the parties run a risk of executing a significant number of transactions via the blockchain to complete the application. 
+Instead, state channels appear to be useful for applications  with a small number of rounds and all parties need to repeat the application's execution more than once. 
 Some applications include payments, casino games, boardroom elections and auctions.
 
 
