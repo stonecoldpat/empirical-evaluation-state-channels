@@ -159,15 +159,15 @@
 		 %As well, it promises instant finality for every authorised transaction and no transaction fees as there is no central operator to reward.  
 		 %In the worst case, the blockchain guarantees safety of all funds in the channel and liveness as the channel can be closed and its the application can be completed via the blockchain.
 		 To evaluate state channels as a scaling solution, we provide a proof of concept implementation for a two-player battleship game.
-		 Typically it is considered unreasonable to play via the blockchain which we confirm as a single game costs between \$16.27 and \$24.05, but it is perceived as an ideal application for a state channel. 
+		 Typically it is considered unreasonable to play via the blockchain which we confirm as a single game costs between \$16.27 and \$24.06, but it is perceived as an ideal application for a state channel. 
 		 We explore the minimal modifications required to deploy the battleship game as a state channel and propose a new state channel construction which combines features from existing constructions. 
 		 While in the optimistic case we demonstrate the battleship game can be played efficiently in a state channel, the requirement for all parties to collectively authorise new transactions in the state channel introduces new economic and time-based attacks that if exploited renders the game as unreasonable to play. 
 	\end{abstract} 
 
 \section{Introduction}
 
-Since 2009, we have witnessed the rise of cryptocurrencies as the market capitalisation for all cryptocurrencies peaked to \$1 trillion US dollars in December 2017.
-While Bitcoin \cite{nakamoto2008bitcoin} was the first cryptocurrency designed to support financial transactions, another promiment cryptocurrency called Ethereum \cite{wood2014ethereum} has emerged for executing programs called smart contracts. 
+Since 2009, we have witnessed the rise of cryptocurrencies as the market capitalisation for all cryptocurrencies peaked at \$1 trillion US dollars in December 2017.
+While Bitcoin \cite{nakamoto2008bitcoin} was the first cryptocurrency designed to support financial transactions, another prominent cryptocurrency called Ethereum \cite{wood2014ethereum} has emerged for executing programs called smart contracts. 
 The promise of smart contracts is to support the execution of applications without human oversight or a central operator. 
 Some applications proposed include decentralised (and non-custodial) token exchanges \cite{luukybernetwork}, publicly verifiable gambling games without dealers \cite{funfair}, auctions for digital goods without auctioneers \cite{auctions}, boardroom electronic voting wthout tallying authorities \cite{mccorry2017smart}, etc. 
 
@@ -202,7 +202,7 @@ As well, companies have raised substantial capital to deploy channels including 
 
 In this paper, we present an empirical evaluation in the form of a case study for a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
 To aid this evaluation we have designed a two-player battleship game as a smart contract.
-An application like battleship is not typically considered viable to execute via the blockchain due to the quantity of transactions required and in our experiment we confirm this perception as the financial cost is between \$16.27 and \$24.05. 
+An application like battleship is not typically considered viable to execute via the blockchain due to the quantity of transactions required and in our experiment we confirm this perception as the financial cost is between \$16.27 and \$24.06. 
 However, state channels are perceived as a potential scaling solution to allow applications like battleship to be executed over the blockchain. 
 Our contributions are as follows: 
 
@@ -402,7 +402,7 @@ Finally $\appcontract$ stores the state channel address $\statechannel$.
 After the dispute process has concluded in $\statechannel$, one party must send  $\stateinfoi',\rani'$ using $\appunlock$ before the functionality can be re-enabled.
 The application contract verifies that $\stateinfoi'$  indeed represents the final state by computing $\hstatei' := \hash(\stateinfoi', \rani')$, fetching the final state hash $\hstatei$ from $\statechannel$ using $\statechannelgetcommitment$ and checking  $\hstatei' = \hstatei$. 
 If satisfied, $\appcontract$ stores $\stateinfoi'$ and re-enables all functionality by setting $\instantiated :=  \instantiatedno$. 
-Of course, if there is no activity within the state channel, then the state channel contract's dispute process can expiry without a submitted $\hstatei$.
+Of course, if there is no activity within the state channel, then the state channel contract's dispute process can expire without a submitted $\hstatei$.
 In this case, the application contract verifies the state channel returns $\emptyset$ and re-enables all functionality without modifying the existing state. 
 
 
@@ -413,8 +413,7 @@ In this case, the application contract verifies the state channel returns $\empt
 %In this section, we propose tow contracts for the game battleship and demonstrate how it can be adopted to support state channels. 
 %One battleship game relies on a commitment to every cell in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
 %We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
-We provide a high-level overview of the game battleship before proposing how to implement it as a smart contract.  
-In our proposed protocol, we demonstrate how to alleviate the computational task of checking the validity of a player's board using fraud proofs via a challenge-response protocol.
+We provide a high-level overview of the game battleship before proposing how to implement it as a smart contract.
 A security analysis for the game is included in Appendix \ref{sec:secanalysis}.
 We present how to convert the battleship game to support state channels using the template in Section \ref{sec:template}. 
 %To play the game requires both parties to commit to a list of ships 
@@ -444,7 +443,7 @@ If both parties are satisified that all revealed ships are well-formed, they can
 In the turn-based gameplay, the player selects a cell to shoot using $\battleshipattackcell$ and the counterparty must open the cell  within a fixed challenge period. 
 To open, the counterparty reveals if the cell is occupied by water or a ship piece using $\battleshiprevealcell$.
 If this shot sinks a full ship, then the counterparty must reveal the full ship (i.e. instead of the cell's opening) using $\battleshipsinking$. 
-The player ican take another turn if their shot was successful.
+The player can take another turn if their shot was successful.
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
 The loser has a fixed challenge period to prove if the winner's board was incorrectly set up or if the winner cheated during the game using a proof of fraud. 
 A player can call $\battleshipgameover$ after the challenge period has expired to finish the game. 
@@ -614,11 +613,11 @@ We present a proof of concept implementation for our battleship game within a st
 The experiment was performed on a private Ethereum network\footnote{This private network mimics the gas cost of Ethereum's production network.} and the gas costs for our proposed modifications are presented in Table \ref{tab:costs}. 
 
 Our experiment involves three contracts which includes the unmodified battleship contract (Step 1), the battleship contract after applying the application template (Step 15) and the state channel contract (Step 16). 
-Deploying both the modified and unmodified battleship contract highlights the cost for modifying an application contract to support a state channel is approximately 1 million gas. 
+Deploying both the modified and unmodified battleship contract highlights the cost for modifying an application contract to support a state channel is approximately 3 million gas. 
 A single game of battleship (Steps 4-9) via the blockchain costs \$16.27 (approx 20 million gas) where each player takes 65 shots\footnote{This number of shots is based on the better than random algorithm in. \cite{battleshipdata}}.
 In the worst case, the game requires one player to take 99 shots, and the counterparty to take 100 shots. 
-This worst-case costs \$24.05 (approx 30 million gas) to finish the game.  
-Locking the battleship game, creating the state channel, performing the dispute process costs and unlocking the battleship game costs \$1.56 (approx 1 million gas). 
+This worst-case costs \$24.06 (approx 30 million gas) to finish the game.  
+Locking the battleship game, creating the state channel, performing the dispute process costs and unlocking the battleship game costs \$1.56 (approx 2 million gas). 
 The cost for each fraud proof is presented in Steps 11-14 and only one fraud proof is required per game to prove the counterparty has cheated. 
 
 In terms of authorising new states within the channel, one party is responsible for proposing the state transition and the counterparty is responsible for verifying the state transition before both parties authorise the new state. 
@@ -634,7 +633,7 @@ The counterparty takes approximately 296.75 ms to verify the signed message, exe
 %
 %One party can turn off the channel using the dispute process after all parties agree to execute the application off-chain.   
 %This is problematic as all parties are now committed to executing the entire application via the blockchain.
-%In the case of battleship, both parties commit to the battleship game using $\battleshipbegin$ and afterwards must play the entire turn-based game via the blockchain which costs between \$16.27 and \$24.05. 
+%In the case of battleship, both parties commit to the battleship game using $\battleshipbegin$ and afterwards must play the entire turn-based game via the blockchain which costs between \$16.27 and \$24.06. 
 %
 
 %\paragraph{Incorporating command issuance} 
@@ -659,7 +658,7 @@ This dilemma can be summed up in a single question:
 To evaluate this dilemma, our empirical evaluation highlights that it costs \$1.56 to resolve the dispute and submit the full game state to the contract.
 But this does not consider the cost for both players to finish the game via the blockchain, the time required to finish the game, or the increased financial cost when the network's transaction fee spikes due to congestion. %
 Let's consider the worst-case where both players set up the game with an expectation to play it within the state channel, but afterwards one player triggers a dispute to turn off the channel. 
-Both players must finish the game which costs approximately on average \$16.27 to \$24.05 and the latency incurred by playing the game via the blockchain requires a short challenge period (i.e. 5 minutes) to permit each transaction to be accepted into the blockchain. 
+Both players must finish the game which costs approximately on average \$16.27 to \$24.06 and the latency incurred by playing the game via the blockchain requires a short challenge period (i.e. 5 minutes) to permit each transaction to be accepted into the blockchain. 
 As a result it may take several hours to complete a game and it is likely some players will simply forfeit their deposit (and bet) to quit the game early. 
 Finally if the network's transaction fee spikes due to blockchain congestion as it did on the 6th January 2018 to 95,788,574,583 wei\footnote{The blockchain congestion was caused by a popular game called Cryptokitties.}  \cite{etherscan}, then resolving the dispute costs \$57.58 and the game play is between \$599 and \$886.  %
 Thus state channels must strictly be viewed as an optimistic scaling solution only if all parties are trusted to co-operate. 
@@ -728,7 +727,7 @@ Some applications include payments, casino games, boardroom elections and auctio
 %\section{Conclusion} 
 %
 %We proposed a new state channel construction that combines the work of \cite{miller2017sprites,mccorry2018pisa,dziembowski2017perun,statechannelnetworks,coleman2018counterfactual} and an application template which presents the minimal modifications required to deploy an application as a state chanel.  
-%%Battleship was chosen as it is considered unreasonable to play on the Ethereum blockchain (i.e. \$16.27-\$24.05 per game), but it is perceived as an ideal application for a state channel. 
+%%Battleship was chosen as it is considered unreasonable to play on the Ethereum blockchain (i.e. \$16.27-\$24.06 per game), but it is perceived as an ideal application for a state channel. 
 %%Our experiment highlights the worst-case where % that state channels may not be compatible for games l
 %%each player may set up the game with an expectation to play it in the channel, but one party decides not to co-operate off-chain. 
 %%This requires both parties to play the entire game via the blockchain and incur the unreasonable financial cost.
