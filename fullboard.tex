@@ -4,7 +4,6 @@ We present an extension to our battleship game which requires a commitment for e
 For each cell, the commitment consists of a flag $b$ indicating if it is occupied by water $b := 0$ or a ship $b := 1$, and a randon nonce $r$. 
 Assuming the selected board is well-formed, then it can prevent each player lying about their cell opening during the game, but it also increases the game state and the gas requirement for each move in the game. 
 
-
 \subsection{Modifications to the Battleship Contract} 
 
 We present how to modify the battleship contract to support the full board extension. 
@@ -13,26 +12,26 @@ This requires modifying how the game is prepared, how a cell opening during the 
 \paragraph{Prepare boards}
 %Both parties still participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$ and compute $n$ lists of ship hashes. 
 Our extension requires each party to compute an entire board to accompany a list of ships.   
-The board is a list of cell hashes such that $\hcell_{1,1},...,\hcell_{n,n}$ where $n,n$ is the final grid co-ordinate. 
+The board is a list of cell hashes such that $\hcell_{1,1},$ $...,\hcell_{n,n}$ where $n,n$ is the final grid co-ordinate. 
 A cell hash is $\hash(b, r, \mathsf{round}, \participant, \appcontract)$, where $b$ is a flag indicating if it is occupied by water $b := 0$ or a ship location $b := 1$, and $r$ is the nonce. 
 The party signs the list of ships and the board cells: 
 
 \begin{displaymath}
- \sigma := \sign_{\participant}(((k_{1},\hship_{1}),...,(k_{n},\hship_{n})), (\hcell_{1,1},...,\hcell_{n,n}), \participant, \mathsf{round}, \appcontract)
+ \sigma := \sign_{\participant}(((k_{1},\hship_{1}),...,(k_{n},\hship_{n})), (\hcell_{1},...,\hcell_{n}), \participant, \mathsf{round}, \appcontract)
 \end{displaymath}
  
 The contract stores every cell hash in the contract for future use. 
 Each party is responsible for reserving the list of ship and its the board on behalf of their counterparty using  $\battleshipselectboard$. 
 All remaining $N-1$ list of ships and their corresponding boards must be opened and reviewed by the counterparty.  
 If satisified, each party notifies the contract to begin the game using $\battleshipbegin$ or they can quit using $\battleshipgameover$.
-The above can be used as part of the cut-and-choose protocol proposed for the original contract. 
+%s part of the cut-and-choose protocol proposed for the original contract. 
 %Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
 
 \paragraph{Game-play}
 Our extension requires modifying how a player responds to an attacked cell:
 
 \begin{center}
-	$\sigma^{hit}_{\participant} := \sign_{\participant}(x,y,b, r_{cell},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(x,y,x\pm,y\pm,r_{cell}, r_{ship},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
+	$\sigma^{hit}_{\participant} := \sign_{\participant}(x,y,b, r_{cell},\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(x,y,x',y',r_{cell}, r_{ship},\hship,\mathsf{move}, \mathsf{round},\appcontract)$
 \end{center}
 
 Both the hit and sunk messages include the nonce $r_{cell}$.
@@ -43,6 +42,15 @@ The opening can be stored by the contract, otherwise each party must keep a copy
 \subsection{Changes to Fraud Detection}
 
 We present the additional fraud detection that is performed by the contract and the player due to the extension. 
+
+
+\paragraph{Cut-and-choose protocol} \label{sec:cutandchoose}
+To set up the game, both parties participate in a cut-and-choose protocol to provide a probabilistic guarantee that the counterparty's board is well-formed.
+Each player commits, signs and sends the counterparty $N$ boards (i.e. list of ship and cell commitments).
+The counterparty reserves one board for the game using $\battleshipselectboard$.
+Once selected, each player reveals the remaining $N-1$ boards to the counterparty who verifies the boards are well-formed. 
+If both parties are satisified, then they can signal to begin the game using $\battleshipbegin$, otherwise they can quit using $\battleshipgameover$. 
+While this provides a probabilistic guarantee the board is correctly set up, it does not let each player place the ships on their board which may remove an element of the game. 
 
 \paragraph{Integrity checks} 
 
