@@ -138,18 +138,18 @@
 	\title{You sank my battleship! \\ A case study to evaluate state channels as a scaling solution for cryptocurrencies}
 	
 	
-	%	\author{Patrick McCorry\inst{1}, Chris Buckland\inst{1},
-	%		Surya Bakshi\inst{2}, Karl W\"ust\inst{3}, and Andrew Miller\inst{2} }
-	%	
-	%	\institute{King's College London UK\\
-	%		\email{patrick.mccorry,chris.buckland@kcl.ac.uk}
-	%		\and
-	%		University of Illinois at Urbana Champaign\\
-	%		\email{sbakshi3,soc1024@illinois.edu}
-	%		\and 
-	%		ETH Zurich\\
-	%		\email{karl.wuest@inf.ethz.ch}
-	%	}
+		\author{Patrick McCorry\inst{1}, Chris Buckland\inst{1},
+			Surya Bakshi\inst{2}, Karl W\"ust\inst{3}, and Andrew Miller\inst{2} }
+		
+		\institute{King's College London UK\\
+			\email{patrick.mccorry,chris.buckland@kcl.ac.uk}
+			\and
+			University of Illinois at Urbana Champaign\\
+			\email{sbakshi3,soc1024@illinois.edu}
+			\and 
+			ETH Zurich\\
+			\email{karl.wuest@inf.ethz.ch}
+		}
 	
 	\maketitle
 	\begin{abstract}
@@ -160,7 +160,7 @@
 		%In the worst case, the blockchain guarantees safety of all funds in the channel and liveness as the channel can be closed and its the application can be completed via the blockchain.
 		To evaluate state channels as a scaling solution, we provide a proof of concept implementation for a two-player battleship game.
 		Typically it is considered unreasonable to play via the blockchain which we confirm as a single game costs between \$16.27 and \$24.05, but it is perceived as an ideal application for a state channel. 
-		We explore the minimal modifications required to deploy the battleship game as a state channel and propose a new state channel construction which combines features from existing constructions. 
+		We explore the minimal modifications required to deploy the battleship game as a state channel and propose a new state channel construction, \textsf{Kitsune}, which combines features from existing constructions. 
 		While in the optimistic case we demonstrate the battleship game can be played efficiently in a state channel, the requirement for all parties to collectively authorise new transactions in the state channel introduces new economic and time-based attacks that if exploited renders the game as unreasonable to play. 
 	\end{abstract} 
 	
@@ -187,18 +187,18 @@
 	While sidechains are a promising off-chain solution, they still require a blockchain protocol which has a transaction throughput ceiling.
 	% and there is still no non-custodial sidechain protocol that can support executing smart contracts. 
 	
-	On the other hand, a channel can be considered a non-fault tolerant (and $n$ of $n$) consensus protocol as all parties collectively authorise the state of an application amongst themselves. 
+	On the other hand, a channel can be considered an $n$ of $n$ consensus protocol as all parties collectively authorise the state of an application amongst themselves. 
 	There is no blockchain protocol and all parties typically only store the most recently authorised state of the application. 
 	Channels first emerged in Bitcoin to support one-way payments between two parties \cite{spilman2013,decker2015fast}, but has since evolved in Bitcoin towards the development of an off-chain payment network \cite{poon2016bitcoin} by several companies including Blockstream, LND and ACINQ. 
 	% a sender can synchronise a single payment across a route of channels to the receiver. 
 	%Several companies including Blockstream, LND and ACINQ are implementing this off-chain payment network.
-	At the same time, several proposals \cite{miller2017sprites,mccorry2018pisa,dziembowski2017perun,statechannelnetworks,coleman2018counterfactual} collectively extend the capability of a channel to support a group of parties to execute a smart contract (i.e. a program) amongst themselves as opposed to simply payments. 
+	At the same time, several proposals \cite{miller2017sprites,mccorry2018pisa,dziembowski2017perun,statechannelnetworks,coleman2018counterfactual,celernetwork,forcemove} collectively extend the capability of a channel to support a group of parties to execute a smart contract (i.e. a program) amongst themselves as opposed to simply payments. 
 	A state channel promises instant finality for every transaction and no transaction fees as there is no operator to reward.
 	Channels are also self-enforcing as each party is protected against a full collusion of all other parties and in terms of scalability the throughput is only restricted by the network latency between the parties. 
 	%when the group of parties have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
 	%While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
 	The Ethereum Foundation has donated over \$2.7m \cite{efscaling1,efscaling2,efscaling3}  and the Ethereum Community Fund has donated \$275k \cite{ecfscaling} to further explore state channels as a scaling solution.
-	As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO} and FunFair at \$26m \cite{funfair}.
+	As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO}, FunFair at \$26m \cite{funfair}
 	
 	In this paper, we present an empirical evaluation in the form of a case study for a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
 	To aid this evaluation we have designed a two-player battleship game as a smart contract.
@@ -208,7 +208,7 @@
 	
 	\begin{itemize}
 		\item We explore the minimal modifications required to deploy a single-application smart contract as a state channel and propose a template of modifications that can be adopted by others deploying state channels. 
-		\item We present a new state channel construction which is application-agonostic, supports $n$ parties and allows the channel to be turned off such that the application's progress can continue via the blockchain. This combines the constructions from \cite{miller2017sprites}, \cite{mccorry2018pisa}, \cite{dziembowski2017perun}, \cite{croman2016scaling}. 
+		\item We present a new state channel construction, \textsf{Kitsune}, which is application-agonostic, supports $n$ parties and allows the channel to be turned off such that the application's progress can continue via the blockchain. This combines the constructions from \cite{miller2017sprites}, \cite{mccorry2018pisa}, \cite{dziembowski2017perun}, \cite{croman2016scaling}. 
 		\item We provide a proof of concept implementation to evaluate deploying applications within a state channel.
 		This experiment highlights the worst-case scenario of state channels and how it potentially renders applications like battleship as unreasonable to deploy within a state channel. 
 	\end{itemize}
@@ -241,10 +241,12 @@
 	We present a high-level overview of a channel before exploring the evolution of channel constructions from  Bitcoin for financial transactions to Ethereum for executing arbitary smart contracts. 
 	
 	\paragraph{High level overview}
-	A channel is a non-fault tolerant consensus protocol (i.e. $n$ of $n$) which lets a group of parties to transact amongst themselves without interacting with the network. 
-	Each party in the group must lock coins in the underlying blockchain to set up the channel. 
-	Afterwards all parties can collectively execute state transitions and exchange signatures to authorise every new state (i.e. the balance of all parties, the state of a smart contract, etc). 
-	If a single party does not co-operate to authorise a valid state transition, then the underlying blockchain becomes a root of trust to self-enforce it. 
+	A channel lets $n$ parties agree, via unanimous consent, to new states that could be published to the blockchain. 
+	As a result parties can transact amongst themselves instead of interacting via the global network. 
+	%In this sense, a c non-fault tolerant consensus protocol (i.e. $n$ of $n$) which lets a group of parties to transact amongst themselves without interacting with the network. 
+	To set up, each party in the group must lock coins in the underlying blockchain for the channel. 
+	Afterwards all parties collectively execute state transitions and exchange signatures to authorise every new state (i.e. the balance of all parties, the state of a smart contract, etc). 
+	If a single party does not co-operate to authorise a valid state transition, then the underlying blockchain is trusted to resolve disputed transactions and self-enforce the state transition. 
 	In the case of Bitcoin, the blockchain gurantees the safety of coins for the online parties, whereas in the case of a smart contract in Ethereum it also guarantees liveness such that an application will always progress and eventually terminate. 
 	
 	\paragraph{Payment channels in Bitcoin} 
@@ -304,7 +306,7 @@
 	\section{State Channel Construction} 
 	
 	We propose a new state channel smart contract $\statechannel$ and an application template for a smart contract $\appcontract$ to support state channels. 
-	This state channel construction relies on the dispute process model from Sprites/PISA to support $n$ parties and to allow the state channel contract to be application-agnostic. 
+	The new state channel construction  \textsf{Kitsune} relies on the dispute process model from Sprites/PISA to support $n$ parties and to allow the state channel contract to be application-agnostic. 
 	However the dispute process is used to determine the final authorised state as proposed by Perun/Counterfactual. 
 	This allows the state channel to be turned off and for the application's execution to continue via the blockchain.
 	%It is used to determine the final state to allow the channel to be turned off and for the smart contract's application to be progressed via the blockchain as proposed by Perun/Counterfactual. 
@@ -324,7 +326,7 @@
 	If satisified, the full state is stored and all functionality in the application contract is re-enabled to permit executing it via the blockchain. 
 	\subsection{State channel contract}
 	
-	We provide an overview of the state channel contract before discussing how to instantiate it,  how parties collectively authorise new states off-chain and how the dispute process is used to confirm the final state hash. 
+	We provide an overview of the state channel contract for \textsf{Kitsune} before discussing how to instantiate it,  how parties collectively authorise new states off-chain and how the dispute process is used to confirm the final state hash. 
 	
 	\paragraph{Overview of the state channel contract} 
 	Figure \ref{fig:statechannel} presents an overview of the state channel contract.
@@ -605,7 +607,7 @@
 	
 	\section{Proof  of Concept Implementation}
 	
-	We present a proof of concept implementation for our battleship game within a state channel.
+	We present a proof of concept implementation for our battleship game within a state channel.\footnote{Anonymous code: https://www.dropbox.com/s/o5s5k662h9lqlk4/Battleship.zip?dl=0}
 	The experiment was performed on a private Ethereum network\footnote{This private network mimics the gas cost of Ethereum's production network.} and the gas costs for our proposed modifications are presented in Table \ref{tab:costs}. 
 	
 	Our experiment involves three contracts which includes the unmodified battleship contract (Step 1), the battleship contract after applying the application template (Step 15) and the state channel contract (Step 16). 
@@ -675,11 +677,13 @@
 	
 	\paragraph{Handling side-effects and self-enforcing  timers} \label{sec:sideffectshandle}
 	%All signed messages for the game include the contract address $\appcontract$ which is verified within the contract $\mathsf{address(this)}$.
-	Without modification to the local blockchain instance, both the off-chain and on-chain battleship contracts have different addresses.
+	Without modifying to the local blockchain instance, both the off-chain and on-chain battleship contracts have different addresses.
 	This poses problems for our fraud proofs if a message is signed for the off-chain contract address as it will not be valid when the on-chain contract is re-activated.
-	Our proof of concept signs two messages for the on-chain and off-chain contract, however there is an upcoming new consensus rule \cite{eip1014} to deterministically derives the contract's address to support deploying an off-chain contract with the same address. 
-	The battleship contract relies on $\mathsf{msg.sender}$ to authenticate the immediate caller as the transaction signer and this requires the party to sign a transaction for execution in the counterparty's local blockchain. 
-	We highlight that Ethereum transactions have a $\mathsf{chain\_id}$ to prevent the transaction being replayed to another blockchain.
+	To alleviate this issue, we sign two messages for the on-chain and off-chain contract.
+	However there is an upcoming new consensus rule  \cite{eip1014} to deterministically deriv the contract's address which simplifies deploying an off-chain contract with the same address. 
+	The battleship contract relies on $\mathsf{msg.sender}$ to authenticate the immediate caller as the transaction signer.
+	This requires the party to sign a transaction for execution in the counterparty's local blockchain. 
+	We highlight that Ethereum transactions have a $\mathsf{chain\_id}$ to prevent transactions being replayed to another blockchain.
 	The counterparty can verify the transaction has set  $\mathsf{chain\_id}$  and it is destined for the off-chain contract address before executing it in their local blockchain. 
 	Finally both parties no longer share a global clock and we propose two approaches to handle time-dependent events. 
 	First, the time $\timechallenge$ can be set by the player proposing a new state and the counterparty must verify the proposed time is within a range (i.e. a few minutes, or $n$ blocks) before mutually authorising it.
@@ -697,7 +701,7 @@
 	
 	\paragraph{Supporting arbitration outsourcing of state channels} 
 	To alleviate the security assumption that all parties must remain online and synchronised with the blockchain to watch for disputes, PISA \cite{mccorry2018pisa} proposed that parties can hire an accountable third party to watch the channel on their behalf. 
-	The application-agnostic design costruction is beneficial to PISA as the accountable third party is only required to verify the state channel contract's bytecode (and not the application) before accepting a job from the customer. 
+	The application-agnostic design of the new state channel construction \textsf{Kitsune} is beneficial to PISA as the accountable third party is only required to verify the state channel contract's bytecode (and not the application) before accepting a job from the customer. 
 	As well,  the accountable third party only requires a signature from every party in the channel $\Sigma_{\participant}$, the state hash $\hstate$ and the version $\monotoniccounter$ to resolve disputes on the customer's behalf. 
 	%Additionally, our application-agonostic design for the state channel is beneficial as the accountable third party is only required to verify the bytecode for the state channel contract before accepting a job from the customer. 
 	
@@ -707,16 +711,18 @@
 	In our case, both players can use a deterministic rule to resolve the race condition (i.e. $\participant_{1}$ proposed state has priority) as the order of execution has no impact on the game's outcome. 
 	This highlights that race conditions in the underlying application are reflected in the state channel and can result in the state channel being turned off if the order of execution has an impact on the application's outcome. 
 	%
-	%\paragraph{Limitations due to the EVM} 
-	%The mapping data structure in Solidity for the Ethereum contract environment poses problems for the state channel as it cannot simply delete all key-value pairs.
-	%If a key-value pair is set to $\bot$ within the state channel, then this over-write must also occur when the full state is sent to the contract. 
-	%Otherwise, the key-value pair will persist in the application contract after the state channel is turned off.
-	%For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
+	\paragraph{Limitations due to the EVM} 
+	The mapping data structure in Solidity for the Ethereum contract environment poses problems for the state channel as it cannot simply delete all key-value pairs.
+	If a key-value pair is set to $\bot$ within the state channel, then this over-write must also occur when the full state is sent to the contract. 
+	Otherwise, the key-value pair will persist in the application contract after the state channel is turned off.
+	For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
 	
 	\paragraph{Applicable Applications} 
-	The lack of fault tolerance in a state channel implies that it is useful for a small set of parties who can remain online throughout the entire execution of an application. 
-	Our experiment demonstrates that applications like battleship may not be compatible with state channels as there is a risk that each party will execute a significant (and unreasonable) number of transactions via the blockchain to complete the application.
-	Instead, state channels appear useful for applications  with a small number of rounds and all parties need to repeat the application's execution more than once. 
+	Our experiment demonstrates that applications like battleship may not be compatible with state channels due to the risk that each party is required to execute a significant (and unreasonable) number of transactions via the blockchain to complete the application.
+	This highlights that applications deployed as state channels are ultimately restricted by the latency and financial cost of the underlying blockchain protocol.
+	Furthermore, the difficulty with unanimous consent in a state channel implies it is only useful for a small set of parties who can remain online throughout the entire application's execution. 
+	%To conclude, state channels appear useful for applications that are considered reasonable (and tolerable) to execute via the blockchain.
+	With these limitation in mind (and the current scalability issues of cryptocurrencies), state channels appear useful for applications with a small number of rounds and all parties will want to repeat the application's execution more than once. 
 	Some applications include payments, casino games, boardroom elections and auctions.
 	
 	
@@ -736,16 +742,15 @@
 	
 	
 	
-	%
-	%\section{Acknowledgements}
-	%
-	%Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant and Ethereum Community Fund grant.
-	%We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
+	
+	\section{Acknowledgements}
+	
+	Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant and Ethereum Community Fund grant.
+	We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
 	
 	\bibliographystyle{plain}
 	\bibliography{bib}
 	\appendix
-	
 	
 	\begin{table}
 		\centering
@@ -755,7 +760,7 @@
 			\hline
 			\multicolumn{4}{c}{Battleship Game} \\
 			\hline
-			1 & Create BattleshipCon & 10,020,170 & 7.97 \\
+			1 & Create BattleshipCon without State Channel & 10,020,170 & 7.97 \\
 			2 & Deposit ($\battleshipdeposit$) & 44,247 & 0.04 \\
 			3 & Place bet ($\battleshipplacebet$)& 34,687 & 0.03 \\
 			4 & Select counterparty's ships ($\battleshipselectboard$) & 422,894 & 0.34 \\ 
@@ -776,7 +781,7 @@
 			\hline
 			\multicolumn{4}{c}{State Channel} \\
 			\hline
-			17 & Create Modified BattleshipCon & 13,607,0695 & 10.83 \\
+			17 & Create BattleshipCon with State Channel & 13,607,0695 & 10.83 \\
 			18 & Lock ($\battleshiplock$) & 991,617 & 0.79 \\
 			19 & Trigger dispute ($\statechanneldispute$) & 84,106 & 0.07\\
 			20 & Set state hash ($\statechannelsetstate$) & 70,035 & 0.06 \\
@@ -793,7 +798,7 @@
 			\hline 
 		\end{tabular}
 		
-		\caption{Costs of running the battleship game on-chain and within the state channel. We have approximated the cost in USD (\$) using the conversion rate of 1 ether = \$306 and the gas price of 2.6 Gwei which are the real world costs in September 2018. }\label{tab:costs}
+		\caption{Costs of running the battleship game within the state channel. We have approximated the cost in USD (\$) using the conversion rate of 1 ether = \$306 and the gas price of 2.6 Gwei which are the real world costs in September 2018. }\label{tab:costs}
 	\end{table}
 	
 	\input{fullboard.tex}
@@ -920,6 +925,63 @@
 	%(could be merkle tree or just store every cell explicitly) - point is that proof of openin is required. can no longer lie about cell opening, but is it worth the overhead? 
 	%
 	%- This prevents loser wasting turns - if they know they are going to lose, theyll simply not reveal their cells correctly and make the winner take up all their turns. 
+		
+	\begin{figure}
+		\begin{boxedminipage}{\columnwidth}
+			\begin{center}
+				\textsf{Template for application contract}{}\\
+			\end{center}
+			
+			$\instantiated := \bot,  \stateinfo := \bot \\ 
+			\participant  := \emptyset,  \timerdispute := 0, \\
+			\statechannel := \bot, \mathsf{lockno} := 0$
+			
+			
+			\begin{flushleft}
+				\constructor($\participant'$): 
+			\end{flushleft}
+			\begin{tabular}{l}
+				\quad \textbf{set} $\participant := \participant'$ \\
+				\quad \textbf{set} $\instantiated := \instantiatedno$ \\
+				
+			\end{tabular}
+			
+			\begin{flushleft}
+				\oninput \stringlitt{example}(): 
+			\end{flushleft}
+			\begin{tabular}{l}
+				\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
+				\quad \_;
+				
+			\end{tabular}
+			
+			
+			\begin{flushleft}
+				\oninput  \stringlitt{lock}($\timerdispute', \Sigma_{\participant}$):
+			\end{flushleft}
+			\begin{tabular}{l}
+				\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
+				\quad \textbf{if} $\verifysig(\participant,(``\mathsf{instantiate}", \appcontract, \mathsf{lockno}),\Sigma_{\participant})$ \\
+				\quad \quad \textbf{set} $\instantiated := \instantiatedyes$ \\
+				\quad \quad \textbf{set} $\mathsf{lockno} := \mathsf{lockno} + 1$ \\
+				\quad \quad \textbf{set} $\statechannel := \mathsf{StateChannel}(\participant, \timerdispute, \mathsf{this})$
+			\end{tabular}
+			
+			\begin{flushleft} 
+				\oninput \stringlitt{unlock}($\stateinfo',\ran'$): 
+			\end{flushleft}
+			\begin{tabular}{l}
+				\quad \textbf{discard if} $\instantiated = \instantiatedno$ \\
+				\quad \textbf{if} $\hash(\stateinfo', \ran') = \statechannelgetcommitment()$ \\
+				\quad \quad $\instantiated := \instantiatedno$ \\
+				\quad \quad $\stateinfo := \stateinfo'$ \\
+				\quad \textbf{else if} $\bot = \statechannelgetcommitment()$  \\
+				\quad \quad $\instantiated := \instantiatedno$
+			\end{tabular}
+		\end{boxedminipage}
+		
+		\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}\label{fig:appmodify}
+	\end{figure}
 	
 	
 	\begin{figure}[h]
@@ -993,64 +1055,7 @@
 				\quad \textbf{return} $(\timenow, \timeend, \monotoniccounter)$
 			\end{tabular}
 		\end{boxedminipage}
-		\caption{The state channel contract. It is responsible for managing the dispute process and determining the final state hash.  Discard fails the transaction execution if the pre-condition is satisfied.} \label{fig:statechannel}
+		\caption{The state channel contract for \textsf{Kitsune}. It is responsible for managing the dispute process and determining the final state hash.  Discard fails the transaction execution if the pre-condition is satisfied.} \label{fig:statechannel}
 	\end{figure}
-	
-	\begin{figure}
-		\begin{boxedminipage}{\columnwidth}
-			\begin{center}
-				\textsf{Template for application contract}{}\\
-			\end{center}
-			
-			$\instantiated := \bot,  \stateinfo := \bot \\ 
-			\participant  := \emptyset,  \timerdispute := 0, \\
-			\statechannel := \bot, \mathsf{lockno} := 0$
-			
-			
-			\begin{flushleft}
-				\constructor($\participant'$): 
-			\end{flushleft}
-			\begin{tabular}{l}
-				\quad \textbf{set} $\participant := \participant'$ \\
-				\quad \textbf{set} $\instantiated := \instantiatedno$ \\
-				
-			\end{tabular}
-			
-			\begin{flushleft}
-				\oninput \stringlitt{example}(): 
-			\end{flushleft}
-			\begin{tabular}{l}
-				\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
-				\quad \_;
-				
-			\end{tabular}
-			
-			
-			\begin{flushleft}
-				\oninput  \stringlitt{lock}($\timerdispute', \Sigma_{\participant}$):
-			\end{flushleft}
-			\begin{tabular}{l}
-				\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
-				\quad \textbf{if} $\verifysig(\participant,(``\mathsf{instantiate}", \appcontract, \mathsf{lockno}),\Sigma_{\participant})$ \\
-				\quad \quad \textbf{set} $\instantiated := \instantiatedyes$ \\
-				\quad \quad \textbf{set} $\mathsf{lockno} := \mathsf{lockno} + 1$ \\
-				\quad \quad \textbf{set} $\statechannel := \mathsf{StateChannel}(\participant, \timerdispute, \mathsf{this})$
-			\end{tabular}
-			
-			\begin{flushleft} 
-				\oninput \stringlitt{unlock}($\stateinfo',\ran'$): 
-			\end{flushleft}
-			\begin{tabular}{l}
-				\quad \textbf{discard if} $\instantiated = \instantiatedno$ \\
-				\quad \textbf{if} $\hash(\stateinfo', \ran') = \statechannelgetcommitment()$ \\
-				\quad \quad $\instantiated := \instantiatedno$ \\
-				\quad \quad $\stateinfo := \stateinfo'$ \\
-				\quad \textbf{else if} $\bot = \statechannelgetcommitment()$  \\
-				\quad \quad $\instantiated := \instantiatedno$
-			\end{tabular}
-		\end{boxedminipage}
-		
-		\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}\label{fig:appmodify}
-	\end{figure}
-	
+
 \end{document}
