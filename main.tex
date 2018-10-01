@@ -643,10 +643,12 @@
 	%While it appears compatible with our state channel construction, we have left it as future work to incorporate. 
 	
 	\paragraph{Funfair dilemma} 
-	Perun and Counterfactual propose minimising what is stored on the blockchain by deploying the state channel in advance and permitting multiple applications to be created/destroyed within the state channel. 
-	On the other hand, Funfair propose maximimising what is stored on the blockchain state by deploying the entire application to the blockchain in advance and only keeping the state off-chain. 
+	There is a chicken-and-egg problem on whether state channels should create and destroy applications off-chain, or if the state channel should first require an application to already exist on the blockchain. 
+	Perun and Counterfactual advocate for the former to minimise the up front cost of creating the channel, whereas Funfair are pursing the latter to minimise cost of resolving a dispute as only the application's state is kept off-chain. 
+	%Perun and Counterfactual propose minimising what is stored on the blockchain by deploying the state channel in advance and permitting multiple applications to be created/destroyed within the state channel. 
+	%On the other hand, Funfair propose maximimising what is stored on the blockchain state by deploying the entire application to the blockchain in advance and only keeping the state off-chain. 
 	% only store the state in the channel which is similar to our experiment.  
-	Fundamentally both approaches have a different assumption about the likelihood that one party will trigger a dispute and whether the financial cost to resolve it can interfere with the application. 
+	Fundamentally both approaches have a different trust assumption on the likelihood one party will trigger a dispute and whether the financial cost to resolve a dispute can interfere with the application. 
 	This dilemma can be summed up in a single question:
 	
 	\begin{center}
@@ -654,10 +656,12 @@
 	\end{center} 
 	
 	To evaluate this dilemma, our case study highlights that it costs \$1.56 to resolve the dispute and submit the full game state to the contract.
-	But this does not consider the cost for both players to finish the game via the blockchain, the time required to finish the game, or the increased financial cost when the network's transaction fee spikes due to congestion. %
-	Let's consider the worst-case where both players set up the game with an expectation to play it within the state channel, but afterwards one player triggers a dispute to turn off the channel. 
-	Both players must finish the game which costs approximately on average \$16.27 to \$24.05 and the latency incurred by playing the game via the blockchain requires a short challenge period (i.e. 5 minutes) to permit each transaction to be accepted into the blockchain. 
-	As a result it may take several hours to complete a game and it is likely some players will simply forfeit their deposit (and bet) to quit the game early. 
+	But this does not consider the financial cost for both players to finish the game via the blockchain, the time required to finish the game, or the increased financial cost when the network's transaction fee spikes due to congestion. %
+	
+	Let's consider the worst-case where both players set up the game with an expectation to play it within the state channel, but afterwards one player triggers a dispute to turn off the channel and the game must be finished via the blockchain.
+	There is a financial cost on average between \$16.27 to \$24.05 to play the entire game and every move requires a reasonable challenge period to provide time for transactions to be accepted into the blockchain.
+	For example, if each player is provided up to 5 minutes per move and the game requires 200 tranasctions to complete, then the game may take several hours (i.e. 16 hours) to complete. 
+	It is likely some players will simply forfeit their deposit (and bet) to quit the game early. 
 	Finally if the network's transaction fee spikes due to blockchain congestion as it did on the 6th January 2018 to 95,788,574,583 wei\footnote{The blockchain congestion was caused by a popular game called Cryptokitties.}  \cite{etherscan}, then resolving the dispute costs \$57.58 and the game play is between \$599 and \$886.  %
 	
 	Thus state channels must strictly be viewed as an optimistic scaling solution as all parties are trusted to cooperate. 
@@ -748,9 +752,10 @@
 	
 	\section{Acknowledgements}
 	
-	Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant and Ethereum Community Fund grant.
+	Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant, Ethereum Community Fund grant and a Research Institute grant. 
 	Andrew miller is supported by an NSF Grant 1801321.
-	We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
+	We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize).
+	As well, we thank Tom Close for discussions around how to mitigate disputes in state channels. Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
 	
 	\bibliographystyle{plain}
 	\bibliography{bib}
