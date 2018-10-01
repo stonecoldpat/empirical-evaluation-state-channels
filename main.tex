@@ -653,14 +653,19 @@
 		\textit{If the player is about to win a \$10 bet, but the counterparty has stopped responding in the channel, then is it worthwhile for the player to turn off the channel, complete the dispute process, re-activate the application and win the bet via the blockchain if this process costs \$100?} 
 	\end{center} 
 	
-	To evaluate this dilemma, our empirical evaluation highlights that it costs \$1.56 to resolve the dispute and submit the full game state to the contract.
+	To evaluate this dilemma, our case study highlights that it costs \$1.56 to resolve the dispute and submit the full game state to the contract.
 	But this does not consider the cost for both players to finish the game via the blockchain, the time required to finish the game, or the increased financial cost when the network's transaction fee spikes due to congestion. %
 	Let's consider the worst-case where both players set up the game with an expectation to play it within the state channel, but afterwards one player triggers a dispute to turn off the channel. 
 	Both players must finish the game which costs approximately on average \$16.27 to \$24.05 and the latency incurred by playing the game via the blockchain requires a short challenge period (i.e. 5 minutes) to permit each transaction to be accepted into the blockchain. 
 	As a result it may take several hours to complete a game and it is likely some players will simply forfeit their deposit (and bet) to quit the game early. 
 	Finally if the network's transaction fee spikes due to blockchain congestion as it did on the 6th January 2018 to 95,788,574,583 wei\footnote{The blockchain congestion was caused by a popular game called Cryptokitties.}  \cite{etherscan}, then resolving the dispute costs \$57.58 and the game play is between \$599 and \$886.  %
-	Thus state channels must strictly be viewed as an optimistic scaling solution only if all parties are trusted to co-operate. 
-	It introduces a time and money cost which implies that applications within a state channels are ultimately restricted by the underlying blockchain's throughput. 
+	
+	Thus state channels must strictly be viewed as an optimistic scaling solution as all parties are trusted to cooperate. 
+	If this trust is broken (i.e. one party stops cooperating), then the time and financial cost incurred implies that applications are ultimately restricted by the underlying blockchain's throughput. 
+	Future work must consider whether incentives can be aligned to encourage parties not to abort and continue the application's execution within the state channel.  
+	%Future work must consider how to align incentives for applications inside a state channel to encourage parties not to abort. 
+	
+%	It introduces a time and money cost which implies that applications within a state channels are ultimately restricted by the underlying blockchain's throughput. 
 	%This must be considered when designing the application as parties will only resolve disputes to complete the application if its financially affordable and it can be completed within a reasonable time-frame. 
 	
 	
@@ -718,11 +723,9 @@
 	For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
 	
 	\paragraph{Applicable Applications} 
-	Our experiment demonstrates that applications like battleship may not be compatible with state channels due to the risk that each party is required to execute a significant (and unreasonable) number of transactions via the blockchain to complete the application.
-	This highlights that applications deployed as state channels are ultimately restricted by the latency and financial cost of the underlying blockchain protocol.
+	Our experiment demonstrates that applications like battleship may not be compatible with state channels due to the risk that each party is required to execute an unreasonable number of transactions via the blockchain to complete an application. 
 	Furthermore, the difficulty with unanimous consent in a state channel implies it is only useful for a small set of parties who can remain online throughout the entire application's execution. 
-	%To conclude, state channels appear useful for applications that are considered reasonable (and tolerable) to execute via the blockchain.
-	With these limitation in mind (and the current scalability issues of cryptocurrencies), state channels appear useful for applications with a small number of rounds and all parties will want to repeat the application's execution more than once. 
+	With the above limitations in mind, state channels appear useful for applications with a small number of rounds and all parties will want to repeat the application's execution more than once. 
 	Some applications include payments, casino games, boardroom elections and auctions.
 	
 	
@@ -746,6 +749,7 @@
 	\section{Acknowledgements}
 	
 	Patrick McCorry and Chris Buckland are supported by an Ethereum Foundation scaling grant and Ethereum Community Fund grant.
+	Andrew miller is supported by an NSF Grant 1801321.
 	We thank the IC3-ETH participants Frank Sauer, Matthew Salazar, Oded Naor, and Deepak Maram for their support at kick-starting this project (and winning third prize). Finally we thank Master Workshop: Off the Chain for bringing together state channel researchers which helped bootstrap this paper. 
 	
 	\bibliographystyle{plain}
