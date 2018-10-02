@@ -198,7 +198,7 @@
 	%when the group of parties have collectively authorised an application's new state, there are no transaction fees, the throughput is only restricted based on network latency between the users, and every user is protected against a full collusion of all other parties while they remain online. 
 	%While payment channels in Bitcoin are only required to guarantee the safety of deposited funds, a state channel must also guarantee liveness of the application such that an application's progress can be continued via the blockchain if a single party does not co-operate in the channel. 
 	The Ethereum Foundation has donated over \$2.7m \cite{efscaling1,efscaling2,efscaling3}  and the Ethereum Community Fund has donated \$275k \cite{ecfscaling} to further explore state channels as a scaling solution.
-	As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO}, FunFair at \$26m \cite{funfair}
+	As well, companies have raised substantial capital to deploy channels including Raiden at \$33m \cite{raidenICO} and FunFair at \$26m \cite{funfair}.
 	
 	In this paper, we present an empirical evaluation in the form of a case study for a single-application state channel which must be a viable scaling option before a network of state channels is conceivable. 
 	To aid this evaluation we have designed a two-player battleship game as a smart contract.
@@ -607,6 +607,56 @@
 	
 	\section{Proof  of Concept Implementation}
 	
+		\begin{table}
+		\centering
+		\begin{tabular}[]{l l c c}
+			
+			\textbf{Step} & \textbf{Purpose} & \textbf{Gas Cost} & \textbf{\$\$}  \\ 
+			\hline
+			\multicolumn{4}{c}{Battleship Game} \\
+			\hline
+			1 & Create BattleshipCon without State Channel & 10,020,170 & 7.97 \\
+			2 & Deposit ($\battleshipdeposit$) & 44,247 & 0.04 \\
+			3 & Place bet ($\battleshipplacebet$)& 34,687 & 0.03 \\
+			4 & Select counterparty's ships ($\battleshipselectboard$) & 422,894 & 0.34 \\ 
+			5a & Ready to play ($\battleshipbegin$) & 47,651 & 0.04 \\
+			5b & Do not play ($\battleshipquit$) & 388,805 & 0.31 \\
+			6 & Attack ($\battleshipattackcell$) & 69,260 & 0.06 \\
+			7a & Reveal cell ($\battleshiprevealcell$) & 73,252 & 0.06 \\
+			7b & Reveal ship ($\battleshipsinking$)& 111,372 & 0.09  \\
+			8 & Open ships ($\battleshiprevealboard$) & 159,748 & 0.13 \\
+			9 & Finish game ($\battleshipfinish$) & 275,521 & 0.22 \\
+			10 & Withdraw ($\battleshipwithdraw$) & 36,674 & 0.03 \\ 
+			11 & Fraud: Ships at same cell ($\battleshiptwoships$) & 280,766 & 0.22\\
+			12 & Fraud: Declared not hit ($\battleshipdeclarednothit$) & 284,261 & 0.23 \\
+			13 & Fraud: Declared not miss ($\battleshipdeclarednothit$) & 284,654 & 0.23 \\
+			14 & Fraud: Declared not sunk ($\battleshipdeclarednotsunk$) & 312,481 & 0.25 \\
+			15 & Fraud: Attack same cell ($\battleshipsamecell$) & 100,861 & 0.08 \\
+			16 & Challenge period expired ($\battleshipchallengeexpired$) &75,349 & 0.06 \\
+			\hline
+			\multicolumn{4}{c}{State Channel} \\
+			\hline
+			17 & Create BattleshipCon with State Channel & 13,607,0695 & 10.83 \\
+			18 & Lock ($\battleshiplock$) & 991,617 & 0.79 \\
+			19 & Trigger dispute ($\statechanneldispute$) & 84,106 & 0.07\\
+			20 & Set state hash ($\statechannelsetstate$) & 70,035 & 0.06 \\
+			21 & Resolve ($\statechannelresolve$) &89,745 & 0.07 \\
+			21 & Co-operative turnoff ($\statechannelclose$) & 90,354 & 0.07 \\
+			22a & Unlock ($\battleshipunlock$) & 725,508 & 0.6 \\
+			22b & Unlock (No Activity) ($\battleshipunlock$) & 51,454 & 0.04 \\
+			\hline
+			\multicolumn{4}{c}{Aggregated Statistics} \\
+			\hline
+			\multicolumn{2}{l}{Turn state channel on and off} & 1,961,011  & 1.56 \\
+			\multicolumn{2}{l}{Average case for game} & 20,451,633 & 16.27 \\
+			\multicolumn{2}{l}{Worst case for game} & 30,237,372 & 24.05 \\
+			\hline 
+		\end{tabular}
+		
+		\caption{Costs of running the battleship game within the state channel. We have approximated the cost in USD (\$) using the conversion rate of 1 ether = \$306 and the gas price of 2.6 Gwei which are the real world costs in September 2018. }\label{tab:costs}
+	\end{table}
+	
+	
 	We present a proof of concept implementation for our battleship game within a state channel.\footnote{Anonymous code: https://www.dropbox.com/s/o5s5k662h9lqlk4/Battleship.zip?dl=0}
 	The experiment was performed on a private Ethereum network\footnote{This private network mimics the gas cost of Ethereum's production network.} and the gas costs for our proposed modifications are presented in Table \ref{tab:costs}. 
 	
@@ -760,55 +810,6 @@
 	\bibliographystyle{plain}
 	\bibliography{bib}
 	\appendix
-	
-	\begin{table}
-		\centering
-		\begin{tabular}[]{l l c c}
-			
-			\textbf{Step} & \textbf{Purpose} & \textbf{Gas Cost} & \textbf{\$\$}  \\ 
-			\hline
-			\multicolumn{4}{c}{Battleship Game} \\
-			\hline
-			1 & Create BattleshipCon without State Channel & 10,020,170 & 7.97 \\
-			2 & Deposit ($\battleshipdeposit$) & 44,247 & 0.04 \\
-			3 & Place bet ($\battleshipplacebet$)& 34,687 & 0.03 \\
-			4 & Select counterparty's ships ($\battleshipselectboard$) & 422,894 & 0.34 \\ 
-			5a & Ready to play ($\battleshipbegin$) & 47,651 & 0.04 \\
-			5b & Do not play ($\battleshipquit$) & 388,805 & 0.31 \\
-			6 & Attack ($\battleshipattackcell$) & 69,260 & 0.06 \\
-			7a & Reveal cell ($\battleshiprevealcell$) & 73,252 & 0.06 \\
-			7b & Reveal ship ($\battleshipsinking$)& 111,372 & 0.09  \\
-			8 & Open ships ($\battleshiprevealboard$) & 159,748 & 0.13 \\
-			9 & Finish game ($\battleshipfinish$) & 275,521 & 0.22 \\
-			10 & Withdraw ($\battleshipwithdraw$) & 36,674 & 0.03 \\ 
-			11 & Fraud: Ships at same cell ($\battleshiptwoships$) & 280,766 & 0.22\\
-			12 & Fraud: Declared not hit ($\battleshipdeclarednothit$) & 284,261 & 0.23 \\
-			13 & Fraud: Declared not miss ($\battleshipdeclarednothit$) & 284,654 & 0.23 \\
-			14 & Fraud: Declared not sunk ($\battleshipdeclarednotsunk$) & 312,481 & 0.25 \\
-			15 & Fraud: Attack same cell ($\battleshipsamecell$) & 100,861 & 0.08 \\
-			16 & Challenge period expired ($\battleshipchallengeexpired$) &75,349 & 0.06 \\
-			\hline
-			\multicolumn{4}{c}{State Channel} \\
-			\hline
-			17 & Create BattleshipCon with State Channel & 13,607,0695 & 10.83 \\
-			18 & Lock ($\battleshiplock$) & 991,617 & 0.79 \\
-			19 & Trigger dispute ($\statechanneldispute$) & 84,106 & 0.07\\
-			20 & Set state hash ($\statechannelsetstate$) & 70,035 & 0.06 \\
-			21 & Resolve ($\statechannelresolve$) &89,745 & 0.07 \\
-			21 & Co-operative turnoff ($\statechannelclose$) & 90,354 & 0.07 \\
-			22a & Unlock ($\battleshipunlock$) & 725,508 & 0.6 \\
-			22b & Unlock (No Activity) ($\battleshipunlock$) & 51,454 & 0.04 \\
-			\hline
-			\multicolumn{4}{c}{Aggregated Statistics} \\
-			\hline
-			\multicolumn{2}{l}{Turn state channel on and off} & 1,961,011  & 1.56 \\
-			\multicolumn{2}{l}{Average case for game} & 20,451,633 & 16.27 \\
-			\multicolumn{2}{l}{Worst case for game} & 30,237,372 & 24.05 \\
-			\hline 
-		\end{tabular}
-		
-		\caption{Costs of running the battleship game within the state channel. We have approximated the cost in USD (\$) using the conversion rate of 1 ether = \$306 and the gas price of 2.6 Gwei which are the real world costs in September 2018. }\label{tab:costs}
-	\end{table}
 	
 	\input{fullboard.tex}
 	
