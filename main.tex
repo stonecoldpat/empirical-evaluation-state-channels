@@ -410,172 +410,13 @@
 	
 	%Notes: While all functionality is disabled on-chain; we need to be careful with how parties execute it off-chain! Not all functionality can be supported off-chain (i.e. contract to contract interaction); so this needs to be considered. 
 	
-	\section{Battleship within a State Channel} 
-	
-	%In this section, we propose tow contracts for the game battleship and demonstrate how it can be adopted to support state channels. 
-	%One battleship game relies on a commitment to every cell in the grid and every ships, while the other battleship game simply has a commitment to every ship. 
-	%We highlight that our game relies on financial incentives and fraud proofs to self-enforce its integrity as opposed to extensive cryptography.
-	We provide a high-level overview of the game battleship before proposing how to implement it as a smart contract.  
-	%In our proposed protocol, we demonstrate how to alleviate the computational task of checking the validity of a player's board using fraud proofs via a challenge-response protocol.
-	A security analysis for the game is included in Appendix \ref{sec:secanalysis}.
-	We present how to convert the battleship game to support state channels using the template in Section \ref{sec:template}. 
-	%To play the game requires both parties to commit to a list of ships 
-	%To overcome the computational limitation of checking the validity of a battleship game, we demonstrate how to use fraud proofs 
-	%The first contract requires a commitment to every cell in a player's board alongside a list of ship commitments, whereas the second game only relies on a list of ship commitments. 
-	%Afterwards we discuss how to overcome the computational limitation of checking a full board's validity by relying on a challenge-response protocol. 
-	%This provides a fixed time period for a player to submit a proof of fraud that the counterparty's board is invalid.
-	%If the fraud proof is correct (and accepted), then the contract atomically forfeits the counterparty's deposit. 
-	%Finally we present how to convert both contracts to support state channels using the template in Section \ref{sec:template}. 
-	%We propose two contracts for the battleship game where one game has a commitment to every cell in the grid $\hcell_{i,j}$ and every ship $\hship_{1},...,\hship_{n}$, where the second game simply has the list of ship commitments. 
-	%Afterwards, we present the fraud proofs which are compatible with both contracts and how to convert them to support state channels. 
-	
-	\subsection{Overview of Battleship}
-	
-	Battleship is a two-player game where each player has a list of ships that are placed on a 10x10 private board. 
-	Each ship must be marked in a straight line either horizontally or vertically.
-	Our protocol only relies on a commitment to every player's ship and the signed messages exchanged between both parties in order to minimise long-term storage (and the associated gas-cost).
-	An extension to this game is presented in Appendix \ref{sec:commitmentcell} which includes a commitment for every cell on the board. 
-	
-	%However it increases the gas cost for playing the game the only benefit is to p discuss how to extend this game to include a commitment for every cell in Appendix \ref{sec:commitmentcell}, but it increases the gas cost to deploy and play the game. 
-	
-	To set up the game, both parties exchange a commitment to their list of ships and the counterparty must submit it using $\battleshipselectboard$. 
-	Afterwards both players can signal to begin the game using $\battleshipbegin$, otherwise they can quit using $\battleshipgameover$. 
-	In the turn-based gameplay, the player selects a cell to shoot using $\battleshipattackcell$ and the counterparty must open the cell  within a fixed challenge period. 
-	To open, the counterparty reveals if the cell is occupied by water or a ship piece using $\battleshiprevealcell$.
-	If this shot sinks a full ship, then the counterparty must reveal the full ship (i.e. instead of the cell's opening) using $\battleshipsinking$. 
-	The player ican take another turn if their shot was successful.
-	At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
-	The loser has a fixed challenge period to prove if the winner's board was incorrectly set up or if the winner cheated during the game using a proof of fraud. 
-	A player can call $\battleshipgameover$ after the challenge period has expired to finish the game. 
-	
-	\subsection{Battleship Contract}\label{sec:battleshipcontract}
-	
-	We present each phase of the game, how to establish the contract, the turn-based gameplay and finally how the loser is provided an opportunity to prove the winner cheated.
-	
-	\paragraph{Game Phases} There are six phases $\gamesetup, \gameattack, \gamereveal,  \gamewinner, \gamefraud, \\ \gamefinished$. 
-	The $\gamesetup$ phase is responsible for ensuring both players select a single list of ships to begin the game. 
-	Game play transitions between $\gameattack$ and $\gamereveal$ as both players take a turn at shooting the counterparty's ships. 
-	The game transitions to $\gamewinner$ when one player wins the game and it will transition to $\gamefraud$ once the winner has opened all ship locations.
-	This provides the loser a fixed time period to submit a proof of fraud that the winner's board is not well-formed or that the winner did not honestly reveal a cell during the game. 
-	Otherwise, the contract transitions to $\gamefinished$ and the winner can claim their winnings.
-	% to open  to declare a cell, otherwise the contract transitions to $\gamefinished$. 
-	%Of course, the contract transitions to $\gamefraud$ if a proof of fraud to detect cheating by the counterparty is provided and we explore this phase further in Section \ref{sec:fraud}. 
-	
-	\paragraph{Contract establishment} 
-	The contract is established with the address of both players $\participant_{1},\participant_{2}$ and the challenge timer $\timerchallenge$. 
-	Both parties can deposit coins during $\gamesetup$ phase before placing their bets.
-	
-	\paragraph{Prepare list of ships} %Both parties participate in a cut-and-choose protocol during $\gamestatus := \gamesetup$. 
-	A ship hash is denoted as $\hship := \hash(x,y,x',y',r, \mathsf{round}, \participant, \appcontract)$ where $x,y$ represents its starting co-ordinate, $x',y'$ represents its finishing co-ordinate. 
-	Each party $\participant$ computes and signs a list of ships: 
-	
-	\begin{center}
-		$\Sigma_{1}^{N} := \sign_{\participant}(((k_{1},\hship_{1}),...,(k_{n},\hship_{n})), \participant, \mathsf{round}, \appcontract)$ 
-	\end{center}
-	
-	Each ship in the list is denoted as $(k,\hship)$, where $k$ is the length for that particular ship.  
-	This is sent to the counterparty who must submit it using $\battleshipselectboard$ and reserve the ships for the game.\footnote{In Appendix  \ref{sec:cutandchoose} we present a cut-and-choose protocol to allow the counterparty probabilistic verify the board is well-formed.}
-	Both players can notify the contract to begin the game using $\battleshipbegin$ or one party can signal their desire to quit using $\battleshipgameover$.
-	Finally the game $\mathsf{round}$ is incremented regardless if it continues or not. 
-	
-	\paragraph{Game-play} \label{sec:gameplayships}
-	%The game phase transitions several times between $\gameattack$ and $\gamereveal$ as each player has a turn at shooting the counterparty's ships. 
-	The contract maintains a counter $\mathsf{move}$ which is incremented after each player's turn. 
-	In the $\gameattack$ phase, the player $\participant$ challenges the counterparty to open a cell $x,y$ by signing: 
-	
-	\begin{center}
-		$\sigma^{shot}_{\participant} := \sign_{\participant}(x,y, \mathsf{move}, \mathsf{round},\appcontract)$ \\
-	\end{center}
-	
-	This message is submitted using $\battleshipattackcell$.
-	It transitions the game phase to $\gamereveal$ and sets a fixed challenge period $\timechallenge := \timenow + \timerchallenge$ for the counterparty's response. 
-	The counterparty signs one of two messages depending on whether a ship was sunk:
-	
-	\begin{center}
-		$\sigma^{hit}_{\participant} := \sign_{\participant}(x,y,b,\mathsf{move}, \mathsf{round},\appcontract)$ \\ $\sigma^{sunk}_{\participant} := \sign_{\participant}(x,y,x',y',r,\hship,\mathsf{move}, \mathsf{round},\appcontract)$
-	\end{center}
-	
-	The counterparty is responsible for submitting either signed message. 
-	The first message declares if the cell is marked with water $(b=0)$ or a ship location $(b=1)$.
-	It is submitted using $\battleshiprevealcell$.
-	The second message declares the shot sank a ship and requires the counterparty to open the corresponding ship commitment $\hship$ to $\battleshipsinking$. 
-	Each party must keep a copy of every signed message\footnote{Every signed message is emitted by the contract and thus it is easily fetchable.} as it can later be used to prove fraud which we discuss in Section \ref{sec:prooffraud}.
-	The game transitions to $\gamewinner$ if one player has declared all their ships sunk. 
-	
-	\paragraph{End of game} 
-	After one player has lost the game (or if the contract has detected cheating by the loser as illustrated in Section \ref{sec:fraud}), the winner must open their remaining ship commitments using $\battleshiprevealships$.
-	This contract transitions to $\gamefraud$ which provides a fixed challenge period for the loser to submit a proof of fraud. 
-	After this time period, the winner can redeem their reward using $\battleshipgameover$  and the game  transitions to $\gamefinished$. 
-	Of course, if both parties have cheated, then the winnings are simply burnt. 
-	
-	\subsection{Checking for Fraud} \label{sec:fraud}
-	
-	We present integrity checks the contract can perform throughout the game to verify that either party has not cheated. 
-	These checks are performed whenever a player calls $\battleshipattackcell, \battleshipsinking, \battleshiprevealcell$ and $\battleshiprevealships$.
+	\section{Applying the Application Template for Battleship} 
+
+	The full battleship contract is presented in Appendix \ref{sec:battleshipcontract} and it is designed to be executed via the blockchain by two players. 
+ 	We explore how to apply the application template from Section \ref{sec:template} to the existing battleship contract such that it can be deployed within a state channel. 
 	
 	
-	\paragraph{Exceeded maximum number of moves} 
-	The contract maintains three counters.
-	The first $\mathsf{move}$ keeps track of the number of actions taken by bother players.
-	If $\mathsf{move}$ exceeds the number of possible moves in the game for both players, then the contract can confirm that both players have cheated as an honest player will have declared all their ships as sunk before the limit for $\mathsf{move}$ is exceeded.
-	In this case, both players are set as cheating and the game transitions to $\gamefinished$ without a winner. 
-	Both $\mathsf{hits}_{i}$ and $\mathsf{water}_{i}$ keeps track of each player's attack on the counterparty's board. 
-	If $\mathsf{hits}_{i}$ exceeds the number of ship positions on the board or $\mathsf{water_{i}}$ exceeds the possible number of water cells, then the counterparty was dishonest about their cell opening. 
-	In this case, the counterparty is marked as cheated, the game transitions to $\gamewinner$ and the winner must open their ships.  
-	
-	\paragraph{Players only play using valid cells}  
-	All cells must be within the permitted range $0 <= x < 10$ and $0 <= y < 10$ for any signed message received. 
-	
-	\paragraph{A ship was not placed  horizontally or vertically}\label{sec:vertical}
-	The contract can check whether an opened ship was placed on the board horizontally or vertically. 
-	To verify, it checks that every location for a ship either has the same $x$ or $y$ co-ordinate, and that $x$ or $y$ is incremented (or decremented) strictly by one for every ship location. 
-	It also checks the ship's length which is established during set up. 
-	
-	\subsection{Proof of Fraud}  \label{sec:prooffraud}
-	
-	To alleviate the need to validate the entire game within the smart contract environment (and incurring unreasonable gas costs), the protocol is designed to let each player validate the game and submit a proof of fraud if the counterparty has cheated. 
-	In the following we present the fraud proofs that can be verified by the contract. 
-	
-	\paragraph{Player has shot the same cell twice} 
-	The contract cannot independently verify if a player has shot the same cell twice as it does not store the opening of cells.
-	Instead the counterparty can submit the two signed shots $\sigma^{shot}_{\participant},\sigma^{shot'}_{\participant}$, the corresponding $\mathsf{move},\mathsf{move}'$ counters and the cell $x,y$ using $\battleshipsamecell$. 
-	The contract verifies if the signatures are valid (and from the same party), both shots are for the same cell, and $\mathsf{move}\neq\mathsf{move}'$. 
-	This proof of fraud can be submitted to the contract at any point during the game. 
-	
-	\paragraph{Counterparty was dishonest about a cell opening}
-	The counterparty has marked a cell $(x,y)$ as water, but an opened $\hship$ states it is a ship location. 
-	%As previously mentioned, the contract only stores ship openings and the player is required to store every signed cell opening. 
-	To prove fraud, the player submits the ship identifier $\hship$, the disputed cell $x,y$ and the signed opening of the cell $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednothit$.
-	The contract can verify if this cell opening was signed by the counterparty as $b = 0$ and the ship $\hship$ claims to be at $x,y$.   
-	On the other hand, the counterparty may also mark a cell as a ship location,  but no ships are at that location.
-	This proof of fraud is similar as the player submits the disputed cell location $x,y$ alongside its signed opening $\sigma^{hit}_{\participant}$ using $\battleshipdeclarednotwater$. 
-	The contract is satisified if it cannot find a ship at that location. 
-	Both proofs can only be submitted during $\gamefraud$. 
-	
-	%\paragraph{Adjacent ships} 
-	%This fraud proof proves that a ship is not surrounded by water and instead two ships are adjacent to each other (or claim to be at the same location on the board). 
-	%We only require the ship commitments $\hship_{1},\hship_{2}$ to be opened and the same proof can be used in both contracts. 
-	%Any party can submit the location $i,j$ for the first ship and $i',j'$ for the second ship.  
-	%The contract can verify if ships are adjacent by checking whether $i,j$ is within the range $i''1, j''1$ or if they claim to be at the same location $i,j = i',j'$.
-	
-	
-	\paragraph{Two ships claim to be at  the same cell} 
-	The cheater has used the same cell for two or more ships.  
-	The index for both ships and the cell $x,y$ must be submitted to the contract using $\battleshiptwoships$. 
-	The contract looks up the co-ordinates for each ship and checks if it claims to be at the same location $x, y$.
-	This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
-	
-	\paragraph{Ship was not declared as sunk}
-	The counterparty did not declare a ship as sunk. 
-	All signed cell openings $\sigma^{hit}_{\participant,1},...,\sigma^{hit}_{\participant,k}$ and the ship identifier $\hship$ must be submitted to the contract using $\battleshipdeclarednotsunk$. 
-	This allows the contract to verify that every ship location was opened and this implies the counterparty did not declare the ship as sunk as the final opening should be $\sigma^{sunk}_{\participant}$. 
-	This proof is applicable during $\gamefraud$ after all ships are opened by the winner. 
-	
-	\paragraph{Challenge period has expired }
-	The contract relies on a global clock (i.e. block timestamp or block height) for the challenge period  $\timerchallenge$. 
-	If a player does not respond within this time period, then the counterparty can notify the contract using $\battleshipchallengeexpired$ and the counterparty is set as the winner if the challenge period has expired. 
-	
-	\subsection{Modifications for a State Channel}
+	\subsection{Minimal modifications for a State Channel}
 	
 	We present how to modify the battleship contract before deployment in order to support state channels.
 	This tracks whether a state channel was instantiated,  the lock/unlock functionality to instantiate the state channel, a new pre-condition for every function in the game and how to handle functionality with side-effects in the off-chain contract. 
@@ -596,15 +437,41 @@
 	If successful, the full state is stored and the flag $\instantiated$ is set as $\instantiatedno$.
 	This re-enables all functionality in the battleship contract. 
 	
-	\paragraph{Off-chain contract and identifying side-effects} \label{sec:timers}
+	\subsection{Limitations due to State Channel} 
 	
-	Our experiment requires each player to deploy an off-chain version of the battleship contract to a local blockchain to replicate (and verify) the execution of all state transitions. 
-	We highlight a side-effect is when a state update relies on an environmental variable or interaction with another contract which may not persist when the contract is re-activated on the blockchain. 
+	
+	\paragraph{Loss of a global clock} Both parties no longer share a global clock within the channel to self-enforce time-based events.
+	We propose two approaches to handle time-dependent events. 
+	First, the time $\timechallenge$ can be set by the player proposing a new state and the counterparty must verify the proposed time is within a range (i.e. a few minutes, or $n$ blocks) before mutually authorising it.
+	It must take into account the time required to turn off the channel via the dispute process and the time to initiate/settle the dispute such that $\timechallenge := \timenow + \timerchallenge + \timerdispute + \timerextra$. 
+	An alternative approach is to set $\timechallenge$ as $\bot$ for all updates within the state channel. 
+	Instead the time $\timechallenge$ is set by battleship contract when it is re-activated in the blockchain using $\battleshipunlock$ and if the game is in a relevant phase.
+	
+	\paragraph{No external interaction or side-effects}   \label{sec:sideffectshandle}
+	We define a side-effect as a state update that relies on an environmental variable or external interaction with another contract which may not persist when the application is re-activated on the blockchain. 
 	Some examples in Ethereum include the environment variables $\mathsf{msg}, \mathsf{block}, \mathsf{tx}$, and transfering coins to another contract. 
-	We discuss further in Section \ref{sec:sideffectshandle} how our experiment handles computing the contract's address $\mathsf{address(this)}$, the global clock $\mathsf{block.timestamp}$ or $\mathsf{block.blockhash}$ and the transaction sender $\mathsf{msg.sender}$. 
-	All other functions with side-effects should be deleted or disabled in the off-chain contract which for battleship includes the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$. 
-	The off-chain contract can also include a new $\battleshipgetstate$ to return the full state and the corresponding $\hstate,\monotoniccounter$. 
+	%We discuss further in Section \ref{sec:sideffectshandle} how our experiment handles computing the contract's address $\mathsf{address(this)}$, the global clock $\mathsf{block.timestamp}$ or $\mathsf{block.blockhash}$ and the transaction sender $\mathsf{msg.sender}$.
+	All functions with side-effects should be deleted or disabled in the off-chain contract which for battleship includes the auxillery functions $\battleshipdeposit$ and $\battleshipwithdraw$.  
+
+%	\paragraph{Authenticating the transaction signer} 
 	
+
+%	Finally
+	\paragraph{Off-chain contract}
+
+	Our experiment requires each player to deploy an off-chain version of the battleship contract to a local blockchain to replicate (and verify) the execution of all state transitions. 
+	Without modifying to the local blockchain instance, both the off-chain and on-chain battleship contracts have different addresses.
+	This poses problems for our fraud proofs if a message is signed for the off-chain contract address as it will not be valid when the on-chain contract is re-activated.
+	To alleviate this issue, we sign two messages for the on-chain and off-chain contract.
+	However there is an upcoming new consensus rule  \cite{eip1014} to deterministically deriv the contract's address which simplifies deploying an off-chain contract with the same address. 
+	
+	\paragraph{Authenticating transaction signer and replay protection} 
+	The battleship contract relies on $\mathsf{msg.sender}$ to authenticate the immediate caller as the transaction signer.
+	This requires the party to sign a transaction for execution in the counterparty's local blockchain. 
+	Ethereum transactions have a $\mathsf{chain\_id}$ to prevent transactions signed for one blockchain being replayed to another blockchain.
+	The counterparty can verify the transaction has set  $\mathsf{chain\_id}$  and it is destined for the off-chain contract address before executing it in their local blockchain. 
+	Finally the off-chain contract can also include a new $\battleshipgetstate$ to return the full state and the corresponding $\hstate,\monotoniccounter$. 
+
 	\section{Proof  of Concept Implementation}
 	
 		\begin{table}
@@ -733,22 +600,7 @@
 	%While we have left it as future work, our state channel construction can be modified to support holding the funds of all parties and disputing individual applications within the state channel. 
 	
 	%We envision this can be leveraged to design modular applications which in the case of battleship may permit  only the satisified fraud proof for the game to be instantiated after the dispute process. 
-	
-	\paragraph{Handling side-effects and self-enforcing  timers} \label{sec:sideffectshandle}
-	%All signed messages for the game include the contract address $\appcontract$ which is verified within the contract $\mathsf{address(this)}$.
-	Without modifying to the local blockchain instance, both the off-chain and on-chain battleship contracts have different addresses.
-	This poses problems for our fraud proofs if a message is signed for the off-chain contract address as it will not be valid when the on-chain contract is re-activated.
-	To alleviate this issue, we sign two messages for the on-chain and off-chain contract.
-	However there is an upcoming new consensus rule  \cite{eip1014} to deterministically deriv the contract's address which simplifies deploying an off-chain contract with the same address. 
-	The battleship contract relies on $\mathsf{msg.sender}$ to authenticate the immediate caller as the transaction signer.
-	This requires the party to sign a transaction for execution in the counterparty's local blockchain. 
-	We highlight that Ethereum transactions have a $\mathsf{chain\_id}$ to prevent transactions being replayed to another blockchain.
-	The counterparty can verify the transaction has set  $\mathsf{chain\_id}$  and it is destined for the off-chain contract address before executing it in their local blockchain. 
-	Finally both parties no longer share a global clock and we propose two approaches to handle time-dependent events. 
-	First, the time $\timechallenge$ can be set by the player proposing a new state and the counterparty must verify the proposed time is within a range (i.e. a few minutes, or $n$ blocks) before mutually authorising it.
-	It must take into account the time required to turn off the channel via the dispte process and the time to initiate/settle the dispute such that $\timechallenge := \timenow + \timerchallenge + \timerdispute + \timerextra$. 
-	An alternative approach is to set $\timechallenge$ as $\bot$ for all updates within the state channel. 
-	Instead the time $\timechallenge$ is set by battleship contract when it is re-activated in the blockchain using $\battleshipunlock$ and if the game is in a relevant phase.
+
 	
 	
 	%As we mentioned in Section \ref{sec:timers}, there is no global clock available for setting time within a state channel as the contract no longer sets $\timechallenge$ on behalf of both parties.
@@ -756,6 +608,9 @@
 	%For the first approach, we observed it requires minimal modification as the timer $\timerchallenge$ is modified to be $\timerchallenge + \timerdispute + \timerextra$ when the state channel is created.
 	%However it also implies players must be cautious to close the channel with sufficient time to complete their move via the blockchain.
 	%On the other hand, while the second approach protects both parties from the time it takes to re-activative the contract, it requires the appplication to be aware that the state channel is turned off and accordingly set the time $\timechallenge$ if the game is in a particular state (i.e. attack). 
+	
+	\paragraph{Layer 1 ultimately restricting Layer 2} 
+	Fundamentally, there appears to be a tradeoff between protecting every user against a full collusion of all other parties with the ability to re-deploy on-chain to finish the application, and how to prevent an adversary taking advantage of re-deploying apps to make the other players give up. 
 	
 	
 	\paragraph{Supporting arbitration outsourcing of state channels} 
@@ -775,6 +630,16 @@
 	If a key-value pair is set to $\bot$ within the state channel, then this over-write must also occur when the full state is sent to the contract. 
 	Otherwise, the key-value pair will persist in the application contract after the state channel is turned off.
 	For example, if a party's balance is set to $\bot$ off-chain, but this isn't reflected in the on-chain contract, then this party can withdraw more coins than they deserve. 
+	
+	\paragraph{Self-inspection of blockchain congestion} 
+	If there is a dispute, then can the blockchain self-inspect itself? Otherwise dispute can be triggered during congestion and an honest party doesn't have an opportunity to respond.
+	We suspect this will require a new consensus rule to collect transaction fee metrics from the blockchain. 
+	
+	\paragraph{Inducing cooperative behaviour} 
+	In this paragraph, we'll focus on computing the gas metrics (i.e. cost of modifying the contract, the cost of deploying the state channel, and the cost of resolving a dispute / sending full state). We should be able to come up with a formula to say "given the modification costs, youll need to execute entire application x times before a state channel becomes worthwhile" 
+	
+	\paragraph{Risks of off-chain and self-enforcing smart contracts}
+	In this paragraph, we'll highlight the new applications that off-chain smart contracts can offer. No transaction fees, instant finality, private if all parties co-operate. Are state channels truly private though? i.e. we could imagine black-mailing or bribing miners within a state channel. But if the context requries true privacy, then this can be used against the bribee (i.e. theyll be forced to publish / disclose it). 
 	
 	\paragraph{Applicable Applications} 
 	Our experiment demonstrates that applications like battleship may not be compatible with state channels due to the risk that each party is required to execute an unreasonable number of transactions via the blockchain to complete an application. 
