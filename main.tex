@@ -455,8 +455,6 @@
 
 %	\paragraph{Authenticating the transaction signer} 
 	
-
-%	Finally
 	\paragraph{Off-chain contract}
 
 	Our experiment requires each player to deploy an off-chain version of the battleship contract to a local blockchain to replicate (and verify) the execution of all state transitions. 
@@ -472,7 +470,7 @@
 	The counterparty can verify the transaction has set  $\mathsf{chain\_id}$  and it is destined for the off-chain contract address before executing it in their local blockchain. 
 	Finally the off-chain contract can also include a new $\battleshipgetstate$ to return the full state and the corresponding $\hstate,\monotoniccounter$. 
 
-	\section{Proof  of Concept Implementation}
+	\section{Proof of Concept Implementation}
 	
 		\begin{table}
 		\centering
@@ -523,24 +521,50 @@
 		\caption{Costs of running the battleship game within the state channel. We have approximated the cost in USD (\$) using the conversion rate of 1 ether = \$306 and the gas price of 2.6 Gwei which are the real world costs in September 2018. }\label{tab:costs}
 	\end{table}
 	
+	\begin{table}
+        \centering
+        \begin{tabular}[]{l l c c c}
+            
+            \textbf{Step} & \textbf{Purpose} & \textbf{Propose} & \textbf{Verify} & \textbf{Acknowledge}\\ 
+            \hline
+            \multicolumn{5}{c}{Battleship Game} \\
+            \hline
+            3 & Place bet ($\battleshipplacebet$)& 232.18 & 212.23 & 0.44 \\
+            4 & Select counterparty's ships ($\battleshipselectboard$) & 330.59 & 304.70 & 0.44 \\ 
+            5a & Ready to play ($\battleshipbegin$) & 243.70 & 224.51 & 0.44 \\
+            6 & Attack ($\battleshipattackcell$) & 267.09 & 243.69 & 0.35 \\
+            7a & Reveal cell ($\battleshiprevealcell$) & 268.93 & 248.51 & 0.40 \\
+            7b & Reveal ship ($\battleshipsinking$) & 291.25 & 276.97 & 0.38 \\
+            8 & Open ships ($\battleshiprevealboard$) & 288.75 & 258.70 & 0.35 \\
+            9 & Finish game ($\battleshipfinish$) & 376.05 & 349.20 & 0.30 \\
+            \hline 
+        \end{tabular}
+        
+        \caption{Time taken to propose, verify and acknowledge new state transitions, measured in milliseconds (ms) and calculated as an average over 100 runs.}\label{tab:timings}
+    \end{table}
 	
-	We present a proof of concept implementation for our battleship game within a state channel.\footnote{Anonymous code: https://www.dropbox.com/s/o5s5k662h9lqlk4/Battleship.zip?dl=0}
-	The experiment was performed on a private Ethereum network\footnote{This private network mimics the gas cost of Ethereum's production network.} and the gas costs for our proposed modifications are presented in Table \ref{tab:costs}. 
-	
+	We present a proof of concept implementation for our battleship game within a state channel\footnote{Anonymous code: https://www.dropbox.com/s/o5s5k662h9lqlk4/Battleship.zip?dl=0}. The experiment was performed using a Dell XPS 13 with Intel Core i5-7200U CPU @ 2.50GHz processor and 8GB LPDDR3 on a private Ethereum node using Ganache\cite{ganache}.
+    In the following we discuss Table \ref{tab:costs} which outlines the gas costs for our proposed modifications and Table \ref{tab:timings} which presents a timing analysis to propose, verify and acknowledge a state transition within the channel. 
+
 	Our experiment involves three contracts which includes the unmodified battleship contract (Step 1), the battleship contract after applying the application template (Step 15) and the state channel contract (Step 16). 
 	Deploying both the modified and unmodified battleship contract highlights the cost for modifying an application contract to support a state channel is approximately 1 million gas. 
 	A single game of battleship (Steps 4-9) via the blockchain costs \$16.27 (approx 20 million gas) where each player takes 65 shots\footnote{This number of shots is based on the better than random algorithm in. \cite{battleshipdata}}.
 	In the worst case, the game requires one player to take 99 shots, and the counterparty to take 100 shots. 
 	This worst-case costs \$24.05 (approx 30 million gas) to finish the game.  
 	Locking the battleship game, creating the state channel, performing the dispute process costs and unlocking the battleship game costs \$1.56 (approx 1 million gas). 
-	The cost for each fraud proof is presented in Steps 11-14 and only one fraud proof is required per game to prove the counterparty has cheated. 
-	
-	In terms of authorising new states within the channel, one party is responsible for proposing the state transition and the counterparty is responsible for verifying the state transition before both parties authorise the new state. 
-	We executed the attack phase 100 times to evaluate the time it takes to authorise a new state in the channel. 
-	After the party has chosen a cell to attack, it takes approximately 300.5 ms to compute the signed attack message, to create and execute the transaction in their local blockchain and to sign the final state hash. 
-	The counterparty takes approximately 296.75 ms to verify the signed message, execute the transaction in their local blockchain, verify and sign the final state hash and finally send the signed new state to the party. 
-	
-	
+	The cost for each fraud proof is presented in Steps 11-14 and only one fraud proof is required per game to prove the counterparty has cheated.
+    
+    All timings in Table \ref{tab:timings} are approximations. We focus on the time taken to propose a new state transition, the time required for the counterparty to verify a state transition and for the initial proposer to verify the signed new state which is an acknowledgement from the counterparty that the state transition is complete.
+    Proposing a new state takes between 232-376ms. 
+    This includes creating and signing a transaction at 12ms, executing the transaction within a local blockchain which is between 35-179ms (i.e. it depends on the function executed), retrieving the full new state from the local blockchain at 172ms preparing a transaction for the counterpart and signing the full state’s hash at 15ms. 
+    The state hash and signature is sent to the counterparty which incurs typical network latency. 
+    The counterparty takes between 212-349ms to verify a state transition. 
+    It includes verifying the received transaction’s signature (and checking it is destined for the off-chain contract) at 8 ms, executing the received transaction within the local blockchain which is between 34-163ms, retrieving the full new state from the local blockchain at 171ms, verifying the signature for the received state hash and verifying it matches the newly computed state hash at 0.4ms, and finally signing the new state hash at 4ms. 
+    The counterparty sends the corresponding signature for the new state hash to the propose which incurs typical network latency. 
+    Finally the proposer must verify the signature from the counterparty which takes 0.4ms.
+    Overall, while the timings are reasonable for real-world use, the most expensive operations involve interacting with the Ganache client.
+
+    
 	\section{Discussion and Future Work} 
 	
 	
@@ -684,9 +708,9 @@
 	This includes how the contract can detect if a board is not well-formed, how it self-enforces a player to attack a valid cell and how to ensure the corresponding cell is honestly opened. 
 	Finally we highlight the contract forfeits any payout if both players are caught cheating. 
 	
-	\subsection{Detecting an Invalid Board}
+	\subsection{Detecting an Invalid Board} \label{sec:cutandchoose}
 	
-	The cut-and-choose protocol presented in Appendix \ref{sec:cutandchoose} lets each player select one of the counterparty's committed boards at random for use in the game and afterwards review the remaining $N-1$ boards before deciding to play the game. 
+	A cut-and-choose protocol lets each player select one of the counterparty's committed boards at random for use in the game and afterwards review the remaining $N-1$ boards before deciding to play the game. 
 	This provides a probabilistic guarantee the selected board is well-formed, but it is not a mandatory step the contract can self-enforce. 
 	Both players may decide to only send a single board commitment to each other so they can manually place the ships. 
 	This provides an opportunity for one (or both) players to construct an invalid board and we highlight how the contract can detect it.  
