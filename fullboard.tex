@@ -19,7 +19,7 @@ Afterwards both players can signal to begin the game using $\battleshipbegin$, o
 In the turn-based gameplay, the player selects a cell to shoot using $\battleshipattackcell$ and the counterparty must open the cell  within a fixed challenge period. 
 To open, the counterparty reveals if the cell is occupied by water or a ship piece using $\battleshiprevealcell$.
 If this shot sinks a full ship, then the counterparty must reveal the full ship (i.e. instead of the cell's opening) using $\battleshipsinking$. 
-The player ican take another turn if their shot was successful.
+%The player can take another turn if their shot was successful.
 At the end, the winner must reveal their board and every ship's location to the loser using $\battleshiprevealboard$.
 The loser has a fixed challenge period to prove if the winner's board was incorrectly set up or if the winner cheated during the game using a proof of fraud. 
 A player can call $\battleshipgameover$ after the challenge period has expired to finish the game. 
@@ -219,3 +219,259 @@ Our extension requires the contract to check every cell opening with the stored 
 If we assume the board is well-formed upon set up, then the party cannot be dishonest about their cell opening during the game. 
 The fraud proofs $\battleshipdeclarednothit$ or $\battleshipdeclarednotwater$ are still required as the board used in the game can be invalid and the contract must verify that the cell opening does not correspond to a ship opening. 
 There is no change to the fraud proof except that the cell nonces are submitted to the contract alongside the signed cell openings. 
+
+
+\section{Security Analysis for Battleship Game} \label{sec:secanalysis}
+
+We provide a brief security analysis for the battleship game and demonstrate how the fraud proofs can be used to self-enforce the game's correct execution.
+This includes how the contract can detect if a board is not well-formed, how it self-enforces a player to attack a valid cell and how to ensure the corresponding cell is honestly opened. 
+Finally we highlight the contract forfeits any payout if both players are caught cheating. 
+
+\subsection{Detecting an Invalid Board} \label{sec:cutandchoose}
+
+A cut-and-choose protocol lets each player select one of the counterparty's committed boards at random for use in the game and afterwards review the remaining $N-1$ boards before deciding to play the game. 
+This provides a probabilistic guarantee the selected board is well-formed, but it is not a mandatory step the contract can self-enforce. 
+Both players may decide to only send a single board commitment to each other so they can manually place the ships. 
+This provides an opportunity for one (or both) players to construct an invalid board and we highlight how the contract can detect it.  
+
+\paragraph{Overlapping ships}
+The board is invalid if one cell is used for more than one ship. 
+The fraud proof $\battleshiptwoships$ can be used to prove that ships are overlapping, but it requires the ship openings to be revealed. 
+There is no guarantee the counterparty will reveal both ship openings during the game, but the winner is always required to open all ships and thus the loser is always provided an opportunity to provide this fraud proof to the contract. 
+
+\paragraph{Ship is not horizontal or vertical}
+All ships must be placed horizontally or vertically on the board, and it must be in a straight line. 
+No fraud proof is required as the contract is responsible for checking every ship opening. 
+We outline in Section \ref{sec:vertical} how the contract checks that a ship was placed on a list of valid cells and how it can check if the ship is placed horizontally or vertically. 
+
+\paragraph{Placed ships are not the correct size} 
+The board is invalid if a ship does not occupy the correct number of cells on the board. 
+The contract stores a list of sizes for each ship. 
+Each ship is represented as $(k,\hship)$ and the contract checks that $k$ corresponds to the expected size for the ship at this position in the list. 
+When the opening of $\hship$ is revealed to the contract it will check the number of cells used by the ship corresponds to $k$. 
+
+\paragraph{Not placing a ship on the board} 
+The board is invalid if a ship is not placed on the board. 
+The contract requries a commitment $\hship$ for every ship before the game can begin.
+If the commitment's pre-image is not well-formed (i.e. it is $\bot$ or the ships location is not occupying valid cells), then the contract will not accept the ship opening.
+Thus after the challenge period $\timechallenge$, the contract will assume the player has not responded with a ship opening.
+On the other hand, if the ship's location is not well-formed then the fraud proofs highlighted above can be used. 
+
+\paragraph{Placing extra ships on the board} 
+The contract only accepts a fixed number of ship commitments and thus the contract self-enforces that only the correct number of ships are placed on the board. 
+
+\subsection{Attacker during Game Play} 
+
+The contract self-enforces the turn-based game play and whose turn it is to attack.
+We consider how a cheater can manipulate the attack message $\sigma^{shot}_{\participant}$ that is supplied to $\battleshipattackcell$. 
+
+\paragraph{Preventing replay attacks}
+The contract is responsible for tracking (and incrementing) two counters. 
+The counter $\mathsf{round}$ is incremented for every new battleship game in this contract (incuding if the game set-up is restarted) and $\mathsf{move}$ is incremented for every new move within a single game. 
+Both counters are used to prevent replay attacks from previous battleship game or moves within this game. 
+All messages also include the battleship contract address $\battleship$.
+
+\paragraph{Attacking an invalid cell}
+The player must select a single cell to attack and as outlined in Section \ref{sec:vertical} the battleship contract verifies the proposed cell is valid. 
+
+\paragraph{Attacking same cell twice} 
+In order to reduce storage, the battleship contract does not keep track of all prevously attacked cells. 
+In Section \ref{sec:prooffraud} we present how the counterparty can submit two signed attack messages $\sigma^{shot}_{\participant},\sigma'^{shot}_{\participant}$ to the contract using $\battleshipsamecell$ to demonstrate the party has tried to attack the same cell twice. 
+
+\paragraph{Not attacking any cell} 
+The player can abort and not attack any cell. 
+After the challenge time $\timechallenge$ has expired, the contract assumes the player has aborted and sets the counterparty as the winner. 
+
+\subsection{Revealer during Game Play} 
+After a cell is attacked, the contract requires the counterparty to open the cell with $\sigma^{hit}_{\participant}$ or declare a ship as sunk with  $\sigma^{sunk}_{\participant}$.
+
+\paragraph{Opening a different cell}
+The battleship contract stores the co-ordinates $x,y$ for the attacked cell and it will only accept a cell (or ship) opening if it is for the stored co-ordinate. 
+
+\paragraph{Dishonest about cell opening}
+%The counterparty can lie about the cell opening (i.e. if it is water $(b=0)$ or as a ship location $(b=1)$).  
+If the counterparty is not honest about the cell opening, then the fraud proofs outlined in Section \ref{sec:fraud} (i.e. $\battleshipdeclarednothit$ or $\battleshipdeclarednotwater$) can be used after the cheater has won and revealed the opening of all their ships. 
+This is comparable to playing the game in-person as the counterparty is not forced to reveal all ships until the game's end. 
+We provide an extension in Appendix \ref{sec:commitmentcell} that requires each party to provide a commitment for every cell on the board to prevents this issue (i.e. if the board is set up correctly), but it increases the cost to play the game. 
+As well, we highlight in Section \ref{sec:fraud} the contract keeps tracks on the number of moves played and the game will always finish when this limit is exceeded. 
+
+\paragraph{Not declaring a ship as sunk}
+If the final ship location is hit, the counterparty can simply not declare the ship as sunk.
+Instead, the counterparty has to open the attacked cell as water or a ship location.
+No more cells for this ship can be hit and thus the ship cannot be opened during the game play. 
+This requires the players to wait until the game has finished and the cheater to be set as the winner. 
+The loser can provide a proof of fraud as presented in Section \ref{sec:prooffraud} to prove the ship was never declared as sunk. 
+We highlight the extension presented in Appendx \ref{sec:commitmentcell} cannot prevent this issue as it is not straight-forward to distinguish several cell openings as being a single ship or several adjacent ships.
+While the cheater can never win the game,  they can force the counterparty to play until the game's end. 
+
+\paragraph{Not opening any cell or ship}
+The counterparty can decide not to open any cells (or ships) in response to an attacked cell. If there is no response by the challenge time $\timechallenge$, then the contract will assume the counterparty is no longer responding and the counterparty is set as the winner. 
+
+\subsection{Both players are cheating} 
+
+The battleship contract should not issue any payout if it is discovered that both players have cheated. 
+After the contract has detected cheating by one player, it always transitions to $\gamewinner$ and sets the counterparty as the winner.
+This requires the counterparty to open all ships and a fixed challenge period is provided for the cheater to submit a proof of fraud.
+If both players are caught as cheating, then the contract transitions to $\gamefinished$ and forfeits the payout. 
+
+%
+%\section{Commitment to entire board}
+%
+%One issue with our battleship game is that a player can lie about the opening of their cell. While they can never win the game by doing so; it does allow the player to require the counterparty to potentially shoot every cell on their board. One way to prevent this attack is to require the counterparty to commit to every cell on their board in advance of the game; and have it revealed throughout. The problem is that this requires a merkle tree verification per move or every hash (200) to be stored in the contract directly - thus increasing the game cost in the honest case. 
+%
+%
+%\paragraph{Representing the board}
+%
+%A cell is represented as $\hcell = H(b, r)$, where  $r$ is a unique nonce and $b$ marks the location as water/ship. 
+%Each cell is a leaf in a merkle tree and the root is stored in the contract. 
+%
+%\paragraph{Opening a cell} 
+%
+%During the game, the counterparty must open the cell $b,r$ alongside a merkle tree branch to prove that this cell is included in the board. 
+%
+%\paragraph{Keeping track of hits} The contract can maintain a bit string, and flip a bit every time a specific cell is hit. This can prevent a player hitting the same cell twice. A second bit string can be used to indicate if a cell was marked as "water" or "hit". i.e. look up to see if cell was hit, and then check if it was 0/1 (i.e. water/ship location). 
+%
+%\paragraph{Benefits and Problems} Prevents players lying during the game (assuming the board is well-formed due to probablistic check). However - it requires a merkle tree verification every move which can be expensive over-time. Also need to self-enforce that the cells and the ship locations match - so all should be revealed at the end of this game - that is a lot of information to send. (i.e. 100 random nonces, 100 b values, etc). 
+%
+%
+%\section{Extension to Battleship Contract}
+%
+%To avoid the issue of allowing a player to "dos" by lying during the game - we can require the party to commit to every cell on the board. 
+%
+%root + 7 hashes + 2 + opening. something along those lines. 
+%
+%(could be merkle tree or just store every cell explicitly) - point is that proof of openin is required. can no longer lie about cell opening, but is it worth the overhead? 
+%
+%- This prevents loser wasting turns - if they know they are going to lose, theyll simply not reveal their cells correctly and make the winner take up all their turns. 
+
+\begin{figure}
+	\begin{boxedminipage}{\columnwidth}
+		\begin{center}
+			\textsf{Template for application contract}{}\\
+		\end{center}
+		
+		$\instantiated := \bot,  \stateinfo := \bot \\ 
+		\participant  := \emptyset,  \timerdispute := 0, \\
+		\statechannel := \bot, \mathsf{lockno} := 0$
+		
+		
+		\begin{flushleft}
+			\constructor($\participant'$): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{set} $\participant := \participant'$ \\
+			\quad \textbf{set} $\instantiated := \instantiatedno$ \\
+			
+		\end{tabular}
+		
+		\begin{flushleft}
+			\oninput \stringlitt{example}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
+			\quad \_;
+			
+		\end{tabular}
+		
+		
+		\begin{flushleft}
+			\oninput  \stringlitt{lock}($\timerdispute', \Sigma_{\participant}$):
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\instantiated = \instantiatedyes$ \\
+			\quad \textbf{if} $\verifysig(\participant,(``\mathsf{instantiate}", \appcontract, \mathsf{lockno}),\Sigma_{\participant})$ \\
+			\quad \quad \textbf{set} $\instantiated := \instantiatedyes$ \\
+			\quad \quad \textbf{set} $\mathsf{lockno} := \mathsf{lockno} + 1$ \\
+			\quad \quad \textbf{set} $\statechannel := \mathsf{StateChannel}(\participant, \timerdispute, \mathsf{this})$
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{unlock}($\stateinfo',\ran'$): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\instantiated = \instantiatedno$ \\
+			\quad \textbf{if} $\hash(\stateinfo', \ran') = \statechannelgetcommitment()$ \\
+			\quad \quad $\instantiated := \instantiatedno$ \\
+			\quad \quad $\stateinfo := \stateinfo'$ \\
+			\quad \textbf{else if} $\bot = \statechannelgetcommitment()$  \\
+			\quad \quad $\instantiated := \instantiatedno$
+		\end{tabular}
+	\end{boxedminipage}
+	
+	\caption{The application contract template. The above modifications must be included to support a state channel. It allows all functionality to be disabled when the channel is created and re-enables all functionality after the dispute process when provided with the full state.}\label{fig:appmodify}
+\end{figure}
+
+
+\begin{figure}[h]
+	\begin{boxedminipage}{\columnwidth}
+		\begin{center}
+			\textsf{State channel contract}{}\\
+		\end{center}
+		
+		$\chanstatus := \bot \\
+		\participant  := \emptyset, \appcontract := \bot, \\ \hstate := \bot, \monotoniccounter := 0 \\ \timerdispute := 0, \timenow := 0, \timeend := 0$
+		
+		\begin{flushleft}
+			\constructor($\participant', \timerdispute', \appcontract'$):
+			
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{set} $\participant := \participant'$ \\
+			\quad \textbf{set} $\timerdispute := \timerdispute'$ \\ 
+			\quad \textbf{set} $\appcontract := \appcontract'$ \\
+			\quad \textbf{set} $\chanstatus := \chanon$ \\
+			
+		\end{tabular}
+		
+		\begin{flushleft}
+			\oninput \stringlitt{triggerdispute}($\sigma_{k}$): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chanon$ \\
+			\quad \textbf{discard if} $\participant \notin \participant_{k}$ \\
+			\quad \textbf{if} $\verifysig(\participant_{k}, (\statechannel, \appcontract, ``\mathsf{dispute}"), \sigma_{k})$ \\
+			\quad \quad \textbf{set} $\chanstatus := \chandispute$ \\
+			\quad \quad \textbf{set} $\timestart := \timenow$ \\
+			\quad \quad \textbf{set} $\timedispute := \timestart + \timerdispute$
+			
+		\end{tabular}
+		
+		
+		\begin{flushleft}
+			\oninput  \stringlitt{setstatehash}($\hstate', \monotoniccounter', \Sigma_{\participant}$):
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus = \chanoff$ \\
+			\quad \textbf{discard if} $\monotoniccounter' \leq \monotoniccounter$ \\
+			\quad \textbf{if} $\verifysig(\participant, (\hstate', \monotoniccounter', \statechannel, \appcontract), \Sigma_{\participant})$ \\
+			\quad \quad \textbf{set} $\hstate := \hstate'$ \\
+			\quad \quad \textbf{set} $\monotoniccounter := \monotoniccounter'$ \\
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{resolve}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chandispute$ \\
+			\quad \textbf{discard if} $\timenow < \timeend$ \\
+			\quad \textbf{set} $\chanstatus := \chanoff$ 
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{getstatehash}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
+			\quad \textbf{return} $\hstatei$
+		\end{tabular}
+		
+		\begin{flushleft} 
+			\oninput \stringlitt{getdispute}(): 
+		\end{flushleft}
+		\begin{tabular}{l}
+			\quad \textbf{discard if} $\chanstatus \neq \chanoff$ \\
+			\quad \textbf{return} $(\timenow, \timeend, \monotoniccounter)$
+		\end{tabular}
+	\end{boxedminipage}
+	\caption{The state channel contract for \textsf{Kitsune}. It is responsible for managing the dispute process and determining the final state hash.  Discard fails the transaction execution if the pre-condition is satisfied.} \label{fig:statechannel}
+\end{figure}
