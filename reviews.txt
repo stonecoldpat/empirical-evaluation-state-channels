@@ -1,0 +1,120 @@
+Review #67A
+===========================================================================
+
+Overall merit
+-------------
+2. Weak reject
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+Paper summary
+-------------
+This paper proposes a state channel-based implementation of the battleship game.
+
+Comments for author
+-------------------
+Once it is clear that one can write arbitrary program on state channels, one thinks that developing a simple game like this is more an engineering problem than a research one. This paper devotes several pages to generic information about blockchains; I think this space would be much better spent describing the relevance of problems beyond those of a toy application, and how this is innovative and/or different with respect to the approaches seen in literature, how this advances the state of the art, and how the lessons in this piece of work can apply to more important applications.
+
+It is however interesting to see that state channels are an optimistic solution that works only when participants are cooperative: noncooperative participants would require completing the game on the blockchain, which takes very long and is quite expensive--though I understand that this could be probably improved a lot via other solutions such as sharding.
+
+The take-home message I get is that a game with many moves, untrusted participants, no trusted third party and low stakes such as the envisioned battleship game is not a great application for either a blockchain or a state channel--I wonder if these messages are relevant for any important applications, though. One may try to solve this through some kind of reputation system, so that uncooperative users are weeded out from the system, similarly to what happens in many online games.
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+Review #67B
+===========================================================================
+
+Overall merit
+-------------
+3. Weak accept
+
+Reviewer expertise
+------------------
+3. Knowledgeable
+
+Paper summary
+-------------
+This paper explores the minimal modifications required to deploy a single-application smart contract as a state channel towards a scaling solution; a state channel allows a group of participants to transact amongst just themselves and the global blockchain is only used as a last resort to self-enforce disputed transactions. A template of modification is proposed and a new state-channel construction is presented. A battleship game is shown as a proof-of-concept implementation and its security issues are discussed.
+
+Comments for author
+-------------------
+Although many of the ideas used in the construction are borrowed from existing works, this paper shows a nice attempt of using a state channel and considering its realistic applications.
+ I like the security discussion with considering time management and disincentive issues. If extended, this discussion would provide more implications.
+ In conclusion, this paper would provoke interesting discussion regarding the potential and the limitation of state channels.
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+Review #67C
+===========================================================================
+
+Overall merit
+-------------
+3. Weak accept
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+Paper summary
+-------------
+The paper provides concrete numbers on how state channel can scale blockchains. For this purpose, the authors first design a suitable state channel and then play the game battleship within the channel. They consider both games with and without disputes. While the game is both faster and cheaper when it proceeds without disputes, games with disputes do not help at mitigating congestion.
+
+Comments for author
+-------------------
+While the results are not surprising, I like that the authors provided actual numbers on how state channels improve scalability. Their state channel construction seems valid and can probably be used for various other applications. I found the discussion on how the likelihood of disputes influences the usefulness of state channels interesting. 
+The paper is well written. 
+
+I have some questions regarding a few details of presented algorithms:
+
+-what happens if one participant in a state channel goes offline unexpectedly, e.g., because it crashes (without PISA)?
+
+-the parameter r, which first appears under 'prepare lists of ships', is not explained in the main paper, in the modified version described in the appendix, r_cell and r_ship are nonces, so I assume r has a similar role?
+
+-when evaluating the game with a dispute, you seem to consider the case that the dispute happens right in the beginning of the game? What would happen if a dispute happens close to the end: is it only the remaining steps that have to be executing on-chain or do previous steps have to be reproduced on-chain? 
+
+Nitpicks:
+
+-when used as a relative pronoun, which requires a comma
+
+-sources for the 7 and 13 tx/s for Bitcoin and Ethereum are missing 
+
+-if you have multiple sources for the same claim, sort them by number (latex can do that automatically)
+
+-'provides fixed dis-pute period for' -> provides a fixed dis-pute period for
+
+-source for Pisa is missing on page 5
+
+-'the player ican'
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+
+Review #67D
+===========================================================================
+
+Overall merit
+-------------
+2. Weak reject
+
+Reviewer expertise
+------------------
+3. Knowledgeable
+
+Paper summary
+-------------
+This paper describes a battleship game implemented as a smart contract on the Ethereum blockchain. It argues that running the application directly on top of Ethereum is too costly, hence the use of state-channels is required. Then the paper proposes the necessary modifications to play battleship on top of state channels. In order to achieve this it proposes the combination of "the best parts" of existing approaches to implement a new state-channel construction.
+
+Comments for author
+-------------------
+Although this paper serves as an interesting exploration and case-study tutorial for someone to learn about state-channels, it's not clear what its novel research contribution is.  If it is trying to be a survey, then it should be just that and focus a lot more on exploring state-channels and current challenges more extensively and systematically instead of just briefly mentioning them in future work. If the paper is proposing a novel state-channel construction, then it should focus on the challenges the previous work faces and propose solutions.  Just combining existing best practices (e.g., from Sprites and Perun) in the natural fashion in one particular narrow and arguably not-particularly-useful example application doesn't seem like an adequate research contribution.
+
+I would propose that the authors decide what they want their paper to be (a  survey or a new state-channel consutruction) and refocus it, especially by shrinking to a minimum the description of what they did (the battleship game on Ethereum and on state channels) and instead focus on why the did it (why is this battleship game something more than a software engineering project?).
+
+4.3 has a typo "bother players"
