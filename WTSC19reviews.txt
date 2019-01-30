@@ -1,0 +1,85 @@
+----------------------- REVIEW 1 ---------------------
+PAPER: 8
+TITLE: You sank my battleship! A case study to evaluate state channels as a scaling solution for cryptocurrencies
+AUTHORS: Patrick McCorry, Chris Buckland, Surya Bakshi, Karl Wüst and Andrew Miller
+
+Overall evaluation: -2 (reject)
+Reviewer's confidence: 3 ((medium))
+
+----------- Overall evaluation -----------
+The present article discusses a state channel implementation of the classic game Battleship.  The paper is exploratory in nature and doesn't seem to present any substantive or concrete scientific results.  It would be helpful for the authors to place their contribution more clearly in the context of existing literature.
+
+Roughly speaking, the authors implement a Battleship system which they themselves conclude is "not suitable for state channels."  As they neither break an existing system nor offer a practical, new security solution, the paper feels somewhat unfinished and inconclusive.  On the other hand, the analysis in Section 6 could be a kernel or catalyst for something more interesting.  I would recommend fleshing this material out into a focused paper.
+
+
+----------------------- REVIEW 2 ---------------------
+PAPER: 8
+TITLE: You sank my battleship! A case study to evaluate state channels as a scaling solution for cryptocurrencies
+AUTHORS: Patrick McCorry, Chris Buckland, Surya Bakshi, Karl Wüst and Andrew Miller
+
+Overall evaluation: 3 (strong accept)
+Reviewer's confidence: 4 ((high))
+
+----------- Overall evaluation -----------
+The paper proposes a new framework for state channel called Kitshun that allows suitable applications to build their state channels version on the blockchain. It also provides implementation and empirical evaluation for the battleship application.
+
+Overall the paper is well written, well executed and interesting to read. Though I feel a bit unsatisfied after reading as think the novelty delta is not that significant compared to previous/existing work. The thoughts, towards the end of the paper in the Discussion section, are very interesting and would definitely attract several follow up work.
+
+For the context of WTSC, I strongly suggest to accept the paper.
+
+
+----------------------- REVIEW 3 ---------------------
+PAPER: 8
+TITLE: You sank my battleship! A case study to evaluate state channels as a scaling solution for cryptocurrencies
+AUTHORS: Patrick McCorry, Chris Buckland, Surya Bakshi, Karl Wüst and Andrew Miller
+
+Overall evaluation: 1 (weak accept)
+Reviewer's confidence: 4 ((high))
+
+----------- Overall evaluation -----------
+[Summary of the Paper]
+
+This paper proposes a framework called Kitsune that can transfer an onchain smart contract into a state-channel based smart contract. An experiment on Ethereum Virtual Machine reveals the runtime computational costs and financial fee costs of the approach. The paper further lists the current problems in and the limitations of the state channel approaches.
+
+[Evaluation]
+
+This work has two contributions. One part proposes a framework called Kitsune and its general applicability. The other part calmly evaluates the state channel approaches from a neutral standpoint. I mark "weak accept" mainly for the second contribution.
+
+The first contribution is rather feeble because the difference from the already proposed state channel constructions is not clearly stated. I think the critical comments on the state channel approaches are valuable.
+
+[Comments for Improvements]
+
+What are the problems that Kitsune solves but the other frameworks do not? There must be a reason for implementing another framework. A clearer description on that would help the readers.
+
+The performance evaluation using Ganache does not sound like very effective.  EVM implemented in Javascript might be slower than those implemented in Go or Rust (I might be prejudiced).
+
+One sentence confused me: "it simply focuses on deciding the final agreed off-chain state".
+Later I read "all functionality in the application contract is reenabled to permit executing it via the blockchain".  The first sentence seemed to suggest that the onchain continuation is not possible.
+
+When I see "Both parties no longer share a global clock within the channel", I have to wonder when both parties did share a global clock.
+
+When I see "a new BS.getstate to return the full state and the corresponding hstate, i", I have to wonder what corresponds to what.
+
+"fee spike to 95,788,574,583 wei": Is this 10 times or 100 times the usual prices?
+
+Some grammar:
+- "dispute process can expiry"--> "... can expire"
+- "Tthe" accountable third party only requires...
+- "did not received" --> "did not receive"
+
+
+----------------------- REVIEW 4 ---------------------
+PAPER: 8
+TITLE: You sank my battleship! A case study to evaluate state channels as a scaling solution for cryptocurrencies
+AUTHORS: Patrick McCorry, Chris Buckland, Surya Bakshi, Karl Wüst and Andrew Miller
+
+Overall evaluation: 2 (accept)
+Reviewer's confidence: 2 ((low))
+
+----------- Overall evaluation -----------
+This paper proposes Kitsune, a new state channel construction based on the PISA protocol, that enables delegation to third parties to participate to the channel. A case study -- the Battleship game -- is presented to explain the method, and to gather data about the cost and the time involved in this kind of applications.
+Overall, the paper is well written and looks sound to me, though I am not particularly expert in the specific field. 
+I suggest to use consistently the string "PISA" in place of "Pisa".
+The paper refers to Ether at US$ 300. Today prices are closer to US$ 150, so please correct the example costs. The English should be checked, especially in the Introduction.
+
+
